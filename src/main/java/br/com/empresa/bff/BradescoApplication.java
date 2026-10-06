@@ -1,4 +1,4 @@
-package bff_bloqueio_cartoes.bradesco;
+package br.com.empresa.bff;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

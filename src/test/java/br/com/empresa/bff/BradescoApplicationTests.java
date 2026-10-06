@@ -1,4 +1,4 @@
-package bff_bloqueio_cartoes.bradesco;
+package br.com.empresa.bff;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
