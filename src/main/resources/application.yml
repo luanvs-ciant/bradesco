@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: bradesco
+
+server:
+  port: 8080
+  servlet:
+    context-path: /bff
+
+logging:
+  level:
+    root: INFO
+    br.com.empresa.bff: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{correlationId}] [%thread] %-5level %logger - %msg%n"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+rest-client:
+  timeout: 5000
+  connect-timeout: 3000
+
+bloqueio-cartao:
+  service:
+    base-url: "${BLOQUEIO_SERVICE_BASE_URL:http://localhost:8081}"
+    path: "${BLOQUEIO_SERVICE_PATH:/api/v1/bloqueios-cartao}"
+    api-key: "${BLOQUEIO_SERVICE_API_KEY:dummy-key}"
+    timeout: 5000
+    connect-timeout: 3000
+
+trace:
+  header:
+    name: X-Correlation-ID
+    user-id: X-Usuario-Id
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+  endpoint:
+    health:
+      show-details: always
