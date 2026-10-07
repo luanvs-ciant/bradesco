@@ -1,5 +1,12 @@
 package br.com.empresa.bff.unit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+
 import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.request.PortadorRequest;
@@ -7,12 +14,6 @@ import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
 import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 class BloqueioCartaoMapperTest {
 

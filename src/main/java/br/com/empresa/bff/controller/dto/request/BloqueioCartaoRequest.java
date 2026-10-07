@@ -1,8 +1,8 @@
 package br.com.empresa.bff.controller.dto.request;
 
-import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
-
 import java.util.List;
+
+import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
 
 public record BloqueioCartaoRequest(
         String cartaoId,
