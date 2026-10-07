@@ -2,7 +2,6 @@ package br.com.empresa.bff.config;
 
 import java.time.Duration;
 
-import org.slf4j.MDC;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.context.annotation.Bean;
