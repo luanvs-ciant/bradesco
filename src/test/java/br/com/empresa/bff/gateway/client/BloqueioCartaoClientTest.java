@@ -60,7 +60,7 @@ class BloqueioCartaoClientTest {
         BloqueioCartaoServiceProperties properties =
                 new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
 
-        this.client = new BloqueioCartaoClientImpl(restClient, properties);
+        this.client = new BloqueioCartaoClient(restClient, properties);
     }
 
     @AfterEach
@@ -121,7 +121,7 @@ class BloqueioCartaoClientTest {
 
         BloqueioCartaoServiceProperties properties =
                 new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
-        BloqueioCartaoClient interceptedClient = new BloqueioCartaoClientImpl(restClient, properties);
+        BloqueioCartaoClient interceptedClient = new BloqueioCartaoClient(restClient, properties);
 
         interceptedServer.expect(requestTo(BASE_URL + PATH))
                 .andExpect(method(HttpMethod.POST))
