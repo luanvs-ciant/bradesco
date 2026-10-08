@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
-import br.com.empresa.bff.gateway.BloqueioCartaoGateway;
+import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
 import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
 
 @Service

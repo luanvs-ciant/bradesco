@@ -4,9 +4,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import br.com.empresa.bff.domain.gateway.BloqueioCartaoResult;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
+import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest.PortadorDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
@@ -22,8 +22,8 @@ public class BloqueioCartaoGatewayMapper {
                 toPortadores(bloqueio.portadores()));
     }
 
-    public BloqueioCartaoResult toResult(BloqueioCartaoDownstreamResponse response) {
-        return new BloqueioCartaoResult(response.protocoloId(), response.status());
+    public ResultadoBloqueioCartao toResult(BloqueioCartaoDownstreamResponse response) {
+        return new ResultadoBloqueioCartao(response.protocoloId(), response.status());
     }
 
     private List<PortadorDownstreamRequest> toPortadores(List<Portador> portadores) {

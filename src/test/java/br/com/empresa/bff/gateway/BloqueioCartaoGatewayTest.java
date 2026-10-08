@@ -21,9 +21,9 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
-import br.com.empresa.bff.domain.gateway.BloqueioCartaoResult;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
+import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 
@@ -79,7 +79,7 @@ class BloqueioCartaoGatewayTest {
 
         var result = gateway.bloquear(domain);
 
-        assertEquals(new BloqueioCartaoResult("abc123", "PROCESSING"), result);
+        assertEquals(new ResultadoBloqueioCartao("abc123", "PROCESSING"), result);
         mockServer.verify();
     }
 

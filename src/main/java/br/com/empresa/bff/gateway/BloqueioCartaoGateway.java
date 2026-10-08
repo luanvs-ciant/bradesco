@@ -8,14 +8,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
-import br.com.empresa.bff.domain.gateway.BloqueioCartaoResult;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
-import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
+import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 
 @Component
-public class BloqueioCartaoGateway {
+public class BloqueioCartaoGateway
+        implements br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway {
 
     private final RestClient restClient;
     private final BloqueioCartaoGatewayMapper mapper;
@@ -30,7 +30,8 @@ public class BloqueioCartaoGateway {
         this.properties = properties;
     }
 
-    public BloqueioCartaoResult bloquear(BloqueioCartao bloqueio) {
+    @Override
+    public ResultadoBloqueioCartao bloquear(BloqueioCartao bloqueio) {
         var request = mapper.toDownstreamRequest(bloqueio);
 
         try {
