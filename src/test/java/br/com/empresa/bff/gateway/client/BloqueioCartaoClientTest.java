@@ -9,10 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +17,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 
 import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
@@ -49,6 +50,9 @@ class BloqueioCartaoClientTest {
         @Autowired
         private BloqueioCartaoClient client;
 
+        @Autowired
+        private UnconfiguredFeignClient unconfiguredFeignClient;
+
         private final ObjectMapper objectMapper = new ObjectMapper();
 
         @MockitoBean
@@ -57,6 +61,8 @@ class BloqueioCartaoClientTest {
         @DynamicPropertySource
         static void registerProperties(DynamicPropertyRegistry registry) {
                 registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url",
+                                () -> "http://localhost:" + SERVER.getAddress().getPort());
+                registry.add("spring.cloud.openfeign.client.config.unconfiguredClient.url",
                                 () -> "http://localhost:" + SERVER.getAddress().getPort());
                 registry.add("bloqueio-cartao.path", () -> PATH);
                 registry.add("BLOQUEIO_SERVICE_API_KEY", () -> API_KEY);
@@ -98,10 +104,21 @@ class BloqueioCartaoClientTest {
                 assertThat(payload.get("portadores").get(0).get("portadorId").asText()).isEqualTo(PORTADOR_ID);
         }
 
+        @Test
+        void shouldShareApiKeyWithUnconfiguredFeignClient() {
+                unconfiguredFeignClient.probe();
+
+                RecordedRequest recordedRequest = LAST_REQUEST.get();
+                assertThat(recordedRequest).isNotNull();
+                assertThat(recordedRequest.path()).isEqualTo("/probe");
+                assertThat(recordedRequest.apiKey()).isEqualTo(API_KEY);
+        }
+
         private static HttpServer startServer() {
                 try {
                         HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
                         server.createContext(PATH, BloqueioCartaoClientTest::handleRequest);
+                        server.createContext("/probe", BloqueioCartaoClientTest::handleProbeRequest);
                         server.start();
                         return server;
                 } catch (IOException exception) {
@@ -110,12 +127,7 @@ class BloqueioCartaoClientTest {
         }
 
         private static void handleRequest(HttpExchange exchange) throws IOException {
-                LAST_REQUEST.set(new RecordedRequest(
-                                exchange.getRequestMethod(),
-                                exchange.getRequestURI().getPath(),
-                                exchange.getRequestHeaders().getFirst(API_KEY_HEADER),
-                                exchange.getRequestHeaders().getFirst("Content-Type"),
-                                new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+                recordRequest(exchange);
 
                 byte[] response = RESPONSE_BODY.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -123,6 +135,21 @@ class BloqueioCartaoClientTest {
                 try (OutputStream responseBody = exchange.getResponseBody()) {
                         responseBody.write(response);
                 }
+        }
+
+        private static void handleProbeRequest(HttpExchange exchange) throws IOException {
+                recordRequest(exchange);
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+        }
+
+        private static void recordRequest(HttpExchange exchange) throws IOException {
+                LAST_REQUEST.set(new RecordedRequest(
+                                exchange.getRequestMethod(),
+                                exchange.getRequestURI().getPath(),
+                                exchange.getRequestHeaders().getFirst(API_KEY_HEADER),
+                                exchange.getRequestHeaders().getFirst("Content-Type"),
+                                new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
         }
 
         private record RecordedRequest(String method, String path, String apiKey, String contentType, String body) {
