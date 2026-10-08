@@ -18,10 +18,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
-import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest.PortadorDownstreamRequest;
-import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
+import br.com.empresa.bff.domain.model.BloqueioCartao;
+import br.com.empresa.bff.domain.model.Portador;
+import br.com.empresa.bff.domain.model.TipoBloqueio;
+import br.com.empresa.bff.gateway.BloqueioCartaoGateway;
+import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 
 class BloqueioCartaoClientTest {
 
@@ -49,18 +51,18 @@ class BloqueioCartaoClientTest {
     private static final String OUTRO_PROTOCOLO_ID = "abc";
 
     private MockRestServiceServer mockServer;
-    private BloqueioCartaoClient client;
+    private BloqueioCartaoGateway gateway;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        this.mockServer = MockRestServiceServer.bindTo(builder).build();
+        mockServer = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.build();
 
         BloqueioCartaoServiceProperties properties =
                 new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
 
-        this.client = new BloqueioCartaoClient(restClient, properties);
+        gateway = new BloqueioCartaoGateway(restClient, new BloqueioCartaoGatewayMapper(), properties);
     }
 
     @AfterEach
@@ -90,14 +92,11 @@ class BloqueioCartaoClientTest {
                         }
                         """.formatted(PROTOCOLO_ID, STATUS_PROCESSING), MediaType.APPLICATION_JSON));
 
-        BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
+        var response = gateway.bloquear(new BloqueioCartao(
                 CARTAO_ID,
-                TIPO_BLOQUEIO_DEFINITIVO,
+                TipoBloqueio.valueOf(TIPO_BLOQUEIO_DEFINITIVO),
                 MOTIVO,
-                List.of(new PortadorDownstreamRequest(PORTADOR_ID))
-        );
-
-        BloqueioCartaoDownstreamResponse response = client.bloquear(request);
+                List.of(new Portador(PORTADOR_ID))));
 
         assertThat(response.protocoloId()).isEqualTo(PROTOCOLO_ID);
         assertThat(response.status()).isEqualTo(STATUS_PROCESSING);
@@ -121,7 +120,8 @@ class BloqueioCartaoClientTest {
 
         BloqueioCartaoServiceProperties properties =
                 new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
-        BloqueioCartaoClient interceptedClient = new BloqueioCartaoClient(restClient, properties);
+        BloqueioCartaoGateway interceptedGateway =
+                new BloqueioCartaoGateway(restClient, new BloqueioCartaoGatewayMapper(), properties);
 
         interceptedServer.expect(requestTo(BASE_URL + PATH))
                 .andExpect(method(HttpMethod.POST))
@@ -132,10 +132,11 @@ class BloqueioCartaoClientTest {
                         {"protocoloId": "%s", "status": "%s"}
                         """.formatted(OUTRO_PROTOCOLO_ID, STATUS_PROCESSING), MediaType.APPLICATION_JSON));
 
-        BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
-                CARTAO_ID, TIPO_BLOQUEIO_TEMPORARIO, null, List.of(new PortadorDownstreamRequest(PORTADOR_ID)));
-
-        interceptedClient.bloquear(request);
+        interceptedGateway.bloquear(new BloqueioCartao(
+                CARTAO_ID,
+                TipoBloqueio.valueOf(TIPO_BLOQUEIO_TEMPORARIO),
+                null,
+                List.of(new Portador(PORTADOR_ID))));
 
         interceptedServer.verify();
     }

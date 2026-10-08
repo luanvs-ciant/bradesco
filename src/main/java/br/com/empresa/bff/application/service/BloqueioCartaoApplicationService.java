@@ -5,8 +5,6 @@ import org.springframework.stereotype.Service;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
 import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
-import br.com.empresa.bff.domain.model.BloqueioCartao;
-import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
 
 @Service
@@ -23,8 +21,8 @@ public class BloqueioCartaoApplicationService {
     }
 
     public BloqueioCartaoResponse bloquear(BloqueioCartaoRequest request) {
-        BloqueioCartao bloqueio = mapper.toDomain(request);
-        ResultadoBloqueioCartao resultado = gateway.bloquear(bloqueio);
-        return new BloqueioCartaoResponse(resultado.protocoloId(), resultado.status());
+        var domain = mapper.toDomain(request);
+        var result = gateway.bloquear(domain);
+        return new BloqueioCartaoResponse(result.protocoloId(), result.status());
     }
 }
