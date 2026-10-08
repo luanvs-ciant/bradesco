@@ -35,9 +35,23 @@ public class GlobalExceptionHandler {
             .body(new ErrorResponse(ErrorCode.VALIDATION_ERROR.name(), message, ""));
     }
 
+    @ExceptionHandler(IntegrationException.class)
+    public ResponseEntity<ErrorResponse> handleIntegrationException(IntegrationException ex) {
+        HttpStatus status = switch (ex.downstreamStatus()) {
+            case 404 -> HttpStatus.NOT_FOUND;
+            case 422 -> HttpStatus.UNPROCESSABLE_CONTENT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+
+        logger.error("Integration error with downstream service, status: {}", ex.downstreamStatus(), ex);
+        return ResponseEntity
+            .status(status)
+            .body(new ErrorResponse(ErrorCode.INTEGRATION_ERROR.name(), ex.getMessage(), ""));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        logger.error("Erro não tratado", ex);
+        logger.error("Unhandled error", ex);
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(new ErrorResponse(ErrorCode.INTERNAL_ERROR.name(), ErrorCode.INTERNAL_ERROR.defaultMessage(), ""));

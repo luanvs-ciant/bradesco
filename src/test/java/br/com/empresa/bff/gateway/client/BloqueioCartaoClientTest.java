@@ -24,6 +24,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
+import br.com.empresa.bff.exception.IntegrationException;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest.PortadorDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
@@ -40,6 +41,7 @@ class BloqueioCartaoClientTest {
         private static final String PROTOCOLO_ID = "8f6d2c10";
         private static final String STATUS_PROCESSING = "PROCESSING";
         private static final String API_KEY_HEADER = "X-Api-Key";
+        private static final AtomicReference<Integer> RESPONSE_STATUS = new AtomicReference<>(200);
         private static final String RESPONSE_BODY = """
                         {"protocoloId": "%s", "status": "%s"}
                         """.formatted(PROTOCOLO_ID, STATUS_PROCESSING);
@@ -71,6 +73,7 @@ class BloqueioCartaoClientTest {
         @BeforeEach
         void setUp() {
                 LAST_REQUEST.set(null);
+                RESPONSE_STATUS.set(200);
         }
 
         @AfterAll
@@ -114,6 +117,22 @@ class BloqueioCartaoClientTest {
                 assertThat(recordedRequest.apiKey()).isEqualTo(API_KEY);
         }
 
+        @Test
+        void deveConverterRespostaHttpNaoSucessoEmErroDeIntegracao() {
+                RESPONSE_STATUS.set(404);
+                BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
+                                CARTAO_ID,
+                                TIPO_BLOQUEIO_DEFINITIVO,
+                                MOTIVO,
+                                List.of(new PortadorDownstreamRequest(PORTADOR_ID))
+                );
+
+                Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> client.bloquear(request));
+
+                assertThat(thrown).isInstanceOf(IntegrationException.class);
+                assertThat(((IntegrationException) thrown).downstreamStatus()).isEqualTo(404);
+        }
+
         private static HttpServer startServer() {
                 try {
                         HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -131,7 +150,7 @@ class BloqueioCartaoClientTest {
 
                 byte[] response = RESPONSE_BODY.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, response.length);
+                exchange.sendResponseHeaders(RESPONSE_STATUS.get(), response.length);
                 try (OutputStream responseBody = exchange.getResponseBody()) {
                         responseBody.write(response);
                 }

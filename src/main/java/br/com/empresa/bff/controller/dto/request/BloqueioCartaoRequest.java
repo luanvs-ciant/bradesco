@@ -9,9 +9,9 @@ import jakarta.validation.constraints.NotNull;
 import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
 
 public record BloqueioCartaoRequest(
-        @NotBlank String cartaoId,
-        @NotNull TipoBloqueioDto tipoBloqueio,
+        @NotBlank(message = "must not be blank") String cartaoId,
+        @NotNull(message = "must not be null") TipoBloqueioDto tipoBloqueio,
         String motivo,
-        @NotEmpty List<@Valid PortadorRequest> portadores
+        @NotEmpty(message = "must not be empty") List<@Valid PortadorRequest> portadores
 ) {
 }

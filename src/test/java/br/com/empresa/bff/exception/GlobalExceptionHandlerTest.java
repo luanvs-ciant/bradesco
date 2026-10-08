@@ -19,7 +19,7 @@ class GlobalExceptionHandlerTest {
 
     private static final String OBJECT_NAME = "BloqueioCartaoRequest";
     private static final String FIELD_NAME = "cartaoId";
-    private static final String FIELD_ERROR_MESSAGE = "não deve estar vazio";
+    private static final String FIELD_ERROR_MESSAGE = "must not be blank";
     private static final String GENERIC_EXCEPTION_MESSAGE = "Erro de teste";
 
     private static final String TEST_ERROR_CODE = "TEST_ERROR";
@@ -52,6 +52,33 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(ErrorCode.VALIDATION_ERROR.name(), response.getBody().code());
         assertTrue(response.getBody().message().contains(FIELD_NAME));
+    }
+
+    @Test
+    @DisplayName("Deve preservar 404 para recurso não encontrado no downstream")
+    void testHandleIntegrationNotFound() {
+        IntegrationException ex = new IntegrationException(404, "Resource not found");
+
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+            handler.handleIntegrationException(ex);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(ErrorCode.INTEGRATION_ERROR.name(), response.getBody().code());
+        assertEquals("Resource not found", response.getBody().message());
+    }
+
+    @Test
+    @DisplayName("Deve preservar 422 para erro de validação no downstream")
+    void testHandleIntegrationUnprocessableContent() {
+        IntegrationException ex = new IntegrationException(422, "Invalid data");
+
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+            handler.handleIntegrationException(ex);
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(ErrorCode.INTEGRATION_ERROR.name(), response.getBody().code());
     }
 
     @Test
