@@ -1,142 +1,130 @@
 package br.com.empresa.bff.gateway.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.AfterEach;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.MDC;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest.PortadorDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
-import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
 
+@SpringBootTest
 class BloqueioCartaoClientTest {
 
-    private static final String BASE_URL = "http://downstream.local";
-    private static final String PATH = "/api/v1/bloqueios-cartao";
-    private static final String API_KEY = "test-api-key";
-
-    private static final String CARTAO_ID = "123456";
-    private static final String TIPO_BLOQUEIO_DEFINITIVO = "DEFINITIVO";
-    private static final String TIPO_BLOQUEIO_TEMPORARIO = "TEMPORARIO";
-    private static final String MOTIVO = "SOLICITACAO_CLIENTE";
-    private static final String PORTADOR_ID = "987654";
-    private static final String PROTOCOLO_ID = "8f6d2c10";
-    private static final String STATUS_PROCESSING = "PROCESSING";
-
-    private static final String CORRELATION_ID_MDC_KEY = "correlationId";
-    private static final String USUARIO_ID_MDC_KEY = "usuarioId";
-    private static final String CORRELATION_ID_VALUE = "corr-123";
-    private static final String USUARIO_ID_VALUE = "user-456";
-
-    private static final String API_KEY_HEADER = "X-Api-Key";
-    private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
-    private static final String USUARIO_ID_HEADER = "X-Usuario-Id";
-
-    private static final String OUTRO_PROTOCOLO_ID = "abc";
-
-    private MockRestServiceServer mockServer;
-    private BloqueioCartaoClient client;
-
-    @BeforeEach
-    void setUp() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        this.mockServer = MockRestServiceServer.bindTo(builder).build();
-        RestClient restClient = builder.build();
-
-        BloqueioCartaoServiceProperties properties =
-                new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
-
-        this.client = new BloqueioCartaoClient(restClient, properties);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MDC.clear();
-    }
-
-    @Test
-    void deveEnviarMetodoRotaPayloadEDesserializarResposta() {
-        mockServer.expect(requestTo(BASE_URL + PATH))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("""
-                        {
-                          "cartaoId": "%s",
-                          "tipoBloqueio": "%s",
-                          "motivo": "%s",
-                          "portadores": [
-                            {"portadorId": "%s"}
-                          ]
-                        }
-                        """.formatted(CARTAO_ID, TIPO_BLOQUEIO_DEFINITIVO, MOTIVO, PORTADOR_ID)))
-                .andRespond(withSuccess("""
-                        {
-                          "protocoloId": "%s",
-                          "status": "%s"
-                        }
-                        """.formatted(PROTOCOLO_ID, STATUS_PROCESSING), MediaType.APPLICATION_JSON));
-
-        BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
-                CARTAO_ID,
-                TIPO_BLOQUEIO_DEFINITIVO,
-                MOTIVO,
-                List.of(new PortadorDownstreamRequest(PORTADOR_ID))
-        );
-
-        BloqueioCartaoDownstreamResponse response = client.bloquear(request);
-
-        assertThat(response.protocoloId()).isEqualTo(PROTOCOLO_ID);
-        assertThat(response.status()).isEqualTo(STATUS_PROCESSING);
-        mockServer.verify();
-    }
-
-    @Test
-    void devePropagarHeadersDeAutenticacaoETrace() {
-        MDC.put(CORRELATION_ID_MDC_KEY, CORRELATION_ID_VALUE);
-        MDC.put(USUARIO_ID_MDC_KEY, USUARIO_ID_VALUE);
-
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL)
-                .requestInterceptor((req, body, exec) -> {
-                    req.getHeaders().set(API_KEY_HEADER, API_KEY);
-                    req.getHeaders().set(CORRELATION_ID_HEADER, MDC.get(CORRELATION_ID_MDC_KEY));
-                    req.getHeaders().set(USUARIO_ID_HEADER, MDC.get(USUARIO_ID_MDC_KEY));
-                    return exec.execute(req, body);
-                });
-        MockRestServiceServer interceptedServer = MockRestServiceServer.bindTo(builder).build();
-        RestClient restClient = builder.build();
-
-        BloqueioCartaoServiceProperties properties =
-                new BloqueioCartaoServiceProperties(BASE_URL, PATH, API_KEY, 5000, 3000);
-        BloqueioCartaoClient interceptedClient = new BloqueioCartaoClient(restClient, properties);
-
-        interceptedServer.expect(requestTo(BASE_URL + PATH))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(header(API_KEY_HEADER, API_KEY))
-                .andExpect(header(CORRELATION_ID_HEADER, CORRELATION_ID_VALUE))
-                .andExpect(header(USUARIO_ID_HEADER, USUARIO_ID_VALUE))
-                .andRespond(withSuccess("""
+        private static final String PATH = "/api/v1/bloqueios-cartao";
+        private static final String API_KEY = "test-api-key";
+        private static final String CARTAO_ID = "123456";
+        private static final String TIPO_BLOQUEIO_DEFINITIVO = "DEFINITIVO";
+        private static final String MOTIVO = "SOLICITACAO_CLIENTE";
+        private static final String PORTADOR_ID = "987654";
+        private static final String PROTOCOLO_ID = "8f6d2c10";
+        private static final String STATUS_PROCESSING = "PROCESSING";
+        private static final String API_KEY_HEADER = "X-Api-Key";
+        private static final String RESPONSE_BODY = """
                         {"protocoloId": "%s", "status": "%s"}
-                        """.formatted(OUTRO_PROTOCOLO_ID, STATUS_PROCESSING), MediaType.APPLICATION_JSON));
+                        """.formatted(PROTOCOLO_ID, STATUS_PROCESSING);
 
-        BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
-                CARTAO_ID, TIPO_BLOQUEIO_TEMPORARIO, null, List.of(new PortadorDownstreamRequest(PORTADOR_ID)));
+        private static final AtomicReference<RecordedRequest> LAST_REQUEST = new AtomicReference<>();
+        private static final HttpServer SERVER = startServer();
 
-        interceptedClient.bloquear(request);
+        @Autowired
+        private BloqueioCartaoClient client;
 
-        interceptedServer.verify();
-    }
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        @MockitoBean
+        private BloqueioCartaoGateway gateway;
+
+        @DynamicPropertySource
+        static void registerProperties(DynamicPropertyRegistry registry) {
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url",
+                                () -> "http://localhost:" + SERVER.getAddress().getPort());
+                registry.add("bloqueio-cartao.path", () -> PATH);
+                registry.add("BLOQUEIO_SERVICE_API_KEY", () -> API_KEY);
+        }
+
+        @BeforeEach
+        void setUp() {
+                LAST_REQUEST.set(null);
+        }
+
+        @AfterAll
+        static void stopServer() {
+                SERVER.stop(0);
+        }
+
+        @Test
+        void deveEnviarPostComPayloadEApiKeyEDesserializarResposta() throws Exception {
+                BloqueioCartaoDownstreamRequest request = new BloqueioCartaoDownstreamRequest(
+                                CARTAO_ID,
+                                TIPO_BLOQUEIO_DEFINITIVO,
+                                MOTIVO,
+                                List.of(new PortadorDownstreamRequest(PORTADOR_ID))
+                );
+
+                BloqueioCartaoDownstreamResponse response = client.bloquear(request);
+                RecordedRequest recordedRequest = LAST_REQUEST.get();
+                assertThat(recordedRequest).isNotNull();
+                JsonNode payload = objectMapper.readTree(recordedRequest.body());
+
+                assertThat(response.protocoloId()).isEqualTo(PROTOCOLO_ID);
+                assertThat(response.status()).isEqualTo(STATUS_PROCESSING);
+                assertThat(recordedRequest.method()).isEqualTo("POST");
+                assertThat(recordedRequest.path()).isEqualTo(PATH);
+                assertThat(recordedRequest.apiKey()).isEqualTo(API_KEY);
+                assertThat(recordedRequest.contentType()).contains("application/json");
+                assertThat(payload.get("cartaoId").asText()).isEqualTo(CARTAO_ID);
+                assertThat(payload.get("tipoBloqueio").asText()).isEqualTo(TIPO_BLOQUEIO_DEFINITIVO);
+                assertThat(payload.get("motivo").asText()).isEqualTo(MOTIVO);
+                assertThat(payload.get("portadores").get(0).get("portadorId").asText()).isEqualTo(PORTADOR_ID);
+        }
+
+        private static HttpServer startServer() {
+                try {
+                        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+                        server.createContext(PATH, BloqueioCartaoClientTest::handleRequest);
+                        server.start();
+                        return server;
+                } catch (IOException exception) {
+                        throw new ExceptionInInitializerError(exception);
+                }
+        }
+
+        private static void handleRequest(HttpExchange exchange) throws IOException {
+                LAST_REQUEST.set(new RecordedRequest(
+                                exchange.getRequestMethod(),
+                                exchange.getRequestURI().getPath(),
+                                exchange.getRequestHeaders().getFirst(API_KEY_HEADER),
+                                exchange.getRequestHeaders().getFirst("Content-Type"),
+                                new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+
+                byte[] response = RESPONSE_BODY.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, response.length);
+                try (OutputStream responseBody = exchange.getResponseBody()) {
+                        responseBody.write(response);
+                }
+        }
+
+        private record RecordedRequest(String method, String path, String apiKey, String contentType, String body) {
+        }
 }

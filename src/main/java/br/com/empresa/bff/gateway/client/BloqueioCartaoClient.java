@@ -1,28 +1,19 @@
 package br.com.empresa.bff.gateway.client;
 
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
-import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
+import br.com.empresa.bff.config.BloqueioCartaoFeignConfig;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 
-@Component
-public class BloqueioCartaoClient {
+@FeignClient(
+        name = "bloqueioCartao",
+        configuration = BloqueioCartaoFeignConfig.class
+)
+public interface BloqueioCartaoClient {
 
-    private final RestClient restClient;
-    private final BloqueioCartaoServiceProperties properties;
-
-    public BloqueioCartaoClient(RestClient bloqueioCartaoRestClient, BloqueioCartaoServiceProperties properties) {
-        this.restClient = bloqueioCartaoRestClient;
-        this.properties = properties;
-    }
-
-    public BloqueioCartaoDownstreamResponse bloquear(BloqueioCartaoDownstreamRequest request) {
-        return restClient.post()
-                .uri(properties.path())
-                .body(request)
-                .retrieve()
-                .body(BloqueioCartaoDownstreamResponse.class);
-    }
+    @PostMapping("${bloqueio-cartao.path}")
+    BloqueioCartaoDownstreamResponse bloquear(@RequestBody BloqueioCartaoDownstreamRequest request);
 }
