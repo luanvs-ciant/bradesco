@@ -1,23 +1,28 @@
 package br.com.empresa.bff.application.service;
 
-import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
-import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
-import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
+import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
+import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
+import br.com.empresa.bff.gateway.BloqueioCartaoGateway;
+import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
 
 @Service
 public class BloqueioCartaoApplicationService {
 
     private final BloqueioCartaoMapper mapper;
+    private final BloqueioCartaoGateway gateway;
 
-    public BloqueioCartaoApplicationService(BloqueioCartaoMapper mapper) {
+    public BloqueioCartaoApplicationService(
+            BloqueioCartaoMapper mapper,
+            BloqueioCartaoGateway gateway) {
         this.mapper = mapper;
+        this.gateway = gateway;
     }
 
     public BloqueioCartaoResponse bloquear(BloqueioCartaoRequest request) {
-        mapper.toDomain(request);
-        return new BloqueioCartaoResponse(UUID.randomUUID().toString(), "PROCESSING");
+        var domain = mapper.toDomain(request);
+        var result = gateway.bloquear(domain);
+        return new BloqueioCartaoResponse(result.protocoloId(), result.status());
     }
 }
