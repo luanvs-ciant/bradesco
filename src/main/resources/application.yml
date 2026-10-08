@@ -24,3 +24,15 @@ logging:
 
 bloqueio-cartao:
   path: "${BLOQUEIO_SERVICE_PATH:/api/v1/bloqueios-cartao}"
+
+okhttp-configuracao-geral:
+  write-timeout-millis: 5000
+  retryOnConnectionFailure: true
+
+okhttp-connection-pool:
+  max-idle-connections: 20
+  keep-alive-duration-segundos: 60
+
+okhttp-dispatcher:
+  max-requests: 64
+  max-requests-per-host: 5
