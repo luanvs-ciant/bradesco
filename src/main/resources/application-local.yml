@@ -1,0 +1,6 @@
+logging:
+  level:
+    br.com.empresa.bff: ${LOG_LEVEL_BR_COM_EMPRESA:DEBUG}
+
+bloqueio-cartao:
+  api-key: "${BLOQUEIO_SERVICE_API_KEY:dummy-key}"

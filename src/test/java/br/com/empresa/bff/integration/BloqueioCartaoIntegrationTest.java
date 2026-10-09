@@ -48,10 +48,11 @@ class BloqueioCartaoIntegrationTest {
     @DynamicPropertySource
     static void configureDownstream(DynamicPropertyRegistry registry) {
         wireMock.start();
-        registry.add("bloqueio-cartao.service.base-url", wireMock::baseUrl);
-        registry.add("bloqueio-cartao.service.api-key", () -> API_KEY);
-        registry.add("bloqueio-cartao.service.timeout", () -> 200);
-        registry.add("bloqueio-cartao.service.connect-timeout", () -> 1000);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", wireMock::baseUrl);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> 200);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
+                registry.add("bloqueio-cartao.path", () -> API_PATH);
+                registry.add("bloqueio-cartao.api-key", () -> API_KEY);
     }
 
     @AfterAll
