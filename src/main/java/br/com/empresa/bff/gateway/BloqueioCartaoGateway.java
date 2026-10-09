@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
@@ -50,7 +51,8 @@ public class BloqueioCartaoGateway
 
             return mapper.toResult(response);
         } catch (RuntimeException exception) {
-            if (exception instanceof DownstreamIntegrationException) {
+            if (exception instanceof DownstreamIntegrationException
+                    || exception instanceof ResourceAccessException) {
                 throw exception;
             }
             throw new DownstreamIntegrationException(
