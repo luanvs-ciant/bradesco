@@ -1,12 +1,12 @@
-package br.com.empresa.bff.gateway;
+package br.com.empresa.bff.exception;
 
 import org.springframework.http.HttpStatusCode;
 
-public class BloqueioCartaoIntegrationException extends RuntimeException {
+public class DownstreamIntegrationException extends RuntimeException {
 
     private final HttpStatusCode status;
 
-    public BloqueioCartaoIntegrationException(HttpStatusCode status, String message) {
+    public DownstreamIntegrationException(HttpStatusCode status, String message) {
         super(message);
         this.status = status;
     }

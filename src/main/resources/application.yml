@@ -12,7 +12,7 @@ logging:
     root: INFO
     br.com.empresa.bff: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{correlationId}] [%thread] %-5level %logger - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{correlationId}] [%thread] %-5level %logger %kvp - %msg%n"
 
 springdoc:
   api-docs:
@@ -35,7 +35,6 @@ bloqueio-cartao:
 
 trace:
   header:
-    name: X-Correlation-ID
     user-id: X-Usuario-Id
 
 management:

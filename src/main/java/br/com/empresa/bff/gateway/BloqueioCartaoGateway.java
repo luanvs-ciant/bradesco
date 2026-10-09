@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClient;
 import br.com.empresa.bff.config.BloqueioCartaoServiceProperties;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
+import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 
@@ -41,7 +42,7 @@ public class BloqueioCartaoGateway
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (httpRequest, httpResponse) -> {
-                        throw new BloqueioCartaoIntegrationException(
+                        throw new DownstreamIntegrationException(
                                 httpResponse.getStatusCode(),
                                 readErrorBody(httpResponse));
                     })
@@ -49,10 +50,10 @@ public class BloqueioCartaoGateway
 
             return mapper.toResult(response);
         } catch (RuntimeException exception) {
-            if (exception instanceof BloqueioCartaoIntegrationException) {
+            if (exception instanceof DownstreamIntegrationException) {
                 throw exception;
             }
-            throw new BloqueioCartaoIntegrationException(
+            throw new DownstreamIntegrationException(
                     HttpStatusCode.valueOf(502),
                     "Serviço de bloqueio indisponível");
         }
