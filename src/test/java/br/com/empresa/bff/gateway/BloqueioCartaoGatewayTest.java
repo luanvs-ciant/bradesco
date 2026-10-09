@@ -6,8 +6,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.util.List;
 
@@ -25,6 +25,7 @@ import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
 import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
+import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 
 class BloqueioCartaoGatewayTest {
@@ -95,7 +96,7 @@ class BloqueioCartaoGatewayTest {
                 null,
                 List.of(new Portador("987654")));
 
-        var exception = assertThrows(BloqueioCartaoIntegrationException.class,
+        var exception = assertThrows(DownstreamIntegrationException.class,
                 () -> gateway.bloquear(domain));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatus());
