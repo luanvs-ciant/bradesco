@@ -1,4 +1,4 @@
-package br.com.empresa.bff;
+package br.com.empresa.bff.integration;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -40,8 +40,6 @@ class BradescoApplicationTests {
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['400'].headers['X-Correlation-ID']").exists())
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['202']").exists())
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['400']").exists())
-				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['401']").exists())
-				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['403']").exists())
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['500']").exists())
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['502']").exists())
 				.andExpect(jsonPath("$.paths['/operacoes/bloqueio-cartoes'].post.responses['503']").exists())

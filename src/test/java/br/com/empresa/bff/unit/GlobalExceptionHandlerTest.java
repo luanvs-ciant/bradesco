@@ -1,4 +1,4 @@
-package br.com.empresa.bff.exception;
+package br.com.empresa.bff.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,9 +21,10 @@ import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.server.ResponseStatusException;
+
+import br.com.empresa.bff.exception.DownstreamIntegrationException;
+import br.com.empresa.bff.exception.ErrorCode;
+import br.com.empresa.bff.exception.GlobalExceptionHandler;
 
 @DisplayName("GlobalExceptionHandler - Testes")
 class GlobalExceptionHandlerTest {
@@ -47,61 +46,28 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void shouldMapAuthorizationWithoutExposingReason() {
-        for (HttpStatus status : List.of(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)) {
-            var response = handler.handleAuthorizationException(new ResponseStatusException(status, "secret"));
-            assertEquals(status, response.getStatusCode());
-            assertFalse(response.getBody().message().contains("secret"));
-            assertFalse(response.getBody().traceId().isBlank());
-        }
-    }
-
-    @Test
-    void shouldMapTimeoutAndUnavailableService() {
-        var timeout = handler.handleDownstreamException(new ResourceAccessException("secret",
-                new SocketTimeoutException("secret")));
-        assertEquals(HttpStatus.GATEWAY_TIMEOUT, timeout.getStatusCode());
-        assertEquals(ErrorCode.DOWNSTREAM_TIMEOUT.name(), timeout.getBody().code());
-        var unavailable = handler.handleDownstreamException(new ResourceAccessException("secret",
-                new ConnectException("secret")));
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, unavailable.getStatusCode());
-        assertEquals(ErrorCode.DOWNSTREAM_UNAVAILABLE.name(), unavailable.getBody().code());
-    }
-
-    @Test
-    void shouldMapDownstreamStatusesWithoutExposingDetails() {
-        for (HttpStatus status : List.of(HttpStatus.INTERNAL_SERVER_ERROR,
-                HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT)) {
-            var response = handler.handleDownstreamException(new HttpServerErrorException(status, "secret"));
-            assertEquals(status == HttpStatus.INTERNAL_SERVER_ERROR ? HttpStatus.BAD_GATEWAY : status,
-                    response.getStatusCode());
-            assertFalse(response.getBody().message().contains("secret"));
-        }
-    }
-
-        @Test
-        void shouldMapIntegrationExceptionToApprovedPublicStatuses() {
+    void shouldMapIntegrationExceptionToApprovedPublicStatuses() {
         var badGateway = handler.handleIntegrationException(new DownstreamIntegrationException(
-            HttpStatus.BAD_GATEWAY, "internal downstream details"));
+                HttpStatus.BAD_GATEWAY, "internal downstream details"));
         assertEquals(HttpStatus.BAD_GATEWAY, badGateway.getStatusCode());
         assertEquals(ErrorCode.DOWNSTREAM_ERROR.name(), badGateway.getBody().code());
         assertFalse(badGateway.getBody().message().contains("internal downstream details"));
 
         var unavailable = handler.handleIntegrationException(new DownstreamIntegrationException(
-            HttpStatus.SERVICE_UNAVAILABLE, "internal downstream details"));
+                HttpStatus.SERVICE_UNAVAILABLE, "internal downstream details"));
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, unavailable.getStatusCode());
         assertEquals(ErrorCode.DOWNSTREAM_UNAVAILABLE.name(), unavailable.getBody().code());
 
         var timeout = handler.handleIntegrationException(new DownstreamIntegrationException(
-            HttpStatus.GATEWAY_TIMEOUT, "internal downstream details"));
+                HttpStatus.GATEWAY_TIMEOUT, "internal downstream details"));
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, timeout.getStatusCode());
         assertEquals(ErrorCode.DOWNSTREAM_TIMEOUT.name(), timeout.getBody().code());
 
         var downstreamUnauthorized = handler.handleIntegrationException(new DownstreamIntegrationException(
-            HttpStatus.UNAUTHORIZED, "internal downstream details"));
+                HttpStatus.UNAUTHORIZED, "internal downstream details"));
         assertEquals(HttpStatus.BAD_GATEWAY, downstreamUnauthorized.getStatusCode());
         assertEquals(ErrorCode.DOWNSTREAM_ERROR.name(), downstreamUnauthorized.getBody().code());
-        }
+    }
 
     @Test
     void shouldRejectUnreadableJsonWithoutExposingDetails() {

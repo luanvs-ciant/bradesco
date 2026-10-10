@@ -28,8 +28,13 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.http.Fault;
 
+/**
+ * BFF real (HTTP -> controller -> service -> gateway -> Feign/OkHttp) contra o downstream simulado pelo WireMock.
+ */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class BloqueioCartaoIntegrationTest {
 
@@ -38,6 +43,9 @@ class BloqueioCartaoIntegrationTest {
     private static final String API_KEY = "integration-test-api-key";
     private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
     private static final String CORRELATION_ID = "integration-test-123";
+    private static final String DOWNSTREAM_DETAILS = "downstream internal details";
+    // Folga para o aquecimento do OkHttp na primeira chamada da JVM, que pode passar de 1s.
+    private static final int READ_TIMEOUT_MILLIS = 2000;
 
     private static final WireMockServer wireMock =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
@@ -50,11 +58,11 @@ class BloqueioCartaoIntegrationTest {
     @DynamicPropertySource
     static void configureDownstream(DynamicPropertyRegistry registry) {
         wireMock.start();
-                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", wireMock::baseUrl);
-                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> 200);
-                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
-                registry.add("bloqueio-cartao.path", () -> API_PATH);
-                registry.add("bloqueio-cartao.api-key", () -> API_KEY);
+        registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", wireMock::baseUrl);
+        registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> READ_TIMEOUT_MILLIS);
+        registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
+        registry.add("bloqueio-cartao.path", () -> API_PATH);
+        registry.add("bloqueio-cartao.api-key", () -> API_KEY);
     }
 
     @AfterAll
@@ -69,15 +77,9 @@ class BloqueioCartaoIntegrationTest {
 
     @Test
     void shouldSendRequestToDownstreamAndReturnAcceptedOperation() throws Exception {
-        wireMock.stubFor(post(urlEqualTo(API_PATH))
-                .willReturn(aResponse()
-                        .withStatus(HttpStatus.ACCEPTED.value())
-                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                        .withBody("""
-                                {"protocoloId":"protocol-123","status":"PROCESSING"}
-                                """)));
+        stubDownstream(acceptedResponse());
 
-        HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
+        HttpResponse<String> response = postBlockRequest(CORRELATION_ID);
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.ACCEPTED.value());
         assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
@@ -102,43 +104,70 @@ class BloqueioCartaoIntegrationTest {
                         """)));
     }
 
-        @ParameterizedTest
-        @CsvSource({"503,DOWNSTREAM_UNAVAILABLE", "504,DOWNSTREAM_TIMEOUT"})
-        void shouldPreserveDownstreamUnavailableAndTimeoutResponses(int status, String code) throws Exception {
-        wireMock.stubFor(post(urlEqualTo(API_PATH))
-                .willReturn(aResponse()
-                                                .withStatus(status)
-                        .withBody("downstream internal details")));
+    @Test
+    void shouldGenerateCorrelationIdAndPropagateItWhenClientOmitsHeader() throws Exception {
+        stubDownstream(acceptedResponse());
 
-        HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
+        HttpResponse<String> response = postBlockRequest(null);
 
-                assertThat(response.statusCode()).isEqualTo(status);
-        assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
-                assertThat(response.body()).contains(code)
-                .doesNotContain("downstream internal details");
-                wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.ACCEPTED.value());
+        String generatedId = response.headers().firstValue(CORRELATION_ID_HEADER).orElseThrow();
+        wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH))
+                .withHeader(CORRELATION_ID_HEADER, equalTo(generatedId)));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "400,502,DOWNSTREAM_ERROR",
+        "500,502,DOWNSTREAM_ERROR",
+        "503,503,DOWNSTREAM_UNAVAILABLE",
+        "504,504,DOWNSTREAM_TIMEOUT"})
+    void shouldMapDownstreamHttpErrorsWithoutRetryOrLeakingDetails(
+            int downstreamStatus, int expectedStatus, String expectedCode) throws Exception {
+        stubDownstream(aResponse().withStatus(downstreamStatus).withBody(DOWNSTREAM_DETAILS));
+
+        assertSafeError(postBlockRequest(CORRELATION_ID), expectedStatus, expectedCode);
     }
 
     @Test
-        void shouldMapDownstreamReadTimeoutToGatewayTimeout() throws Exception {
-        wireMock.stubFor(post(urlEqualTo(API_PATH))
-                .willReturn(aResponse()
-                        .withFixedDelay(1000)
-                        .withStatus(HttpStatus.ACCEPTED.value())
-                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                        .withBody("""
-                                {"protocoloId":"protocol-123","status":"PROCESSING"}
-                                """)));
+    void shouldMapReadTimeoutToGatewayTimeout() throws Exception {
+        stubDownstream(acceptedResponse().withFixedDelay(READ_TIMEOUT_MILLIS * 2));
 
-        HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
-
-                assertThat(response.statusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT.value());
-        assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
-                assertThat(response.body()).contains("DOWNSTREAM_TIMEOUT");
-                awaitRequestJournal();
-                wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
+        assertSafeError(postBlockRequest(CORRELATION_ID), HttpStatus.GATEWAY_TIMEOUT.value(), "DOWNSTREAM_TIMEOUT");
     }
 
+    @Test
+    void shouldMapConnectionFailureToServiceUnavailable() throws Exception {
+        stubDownstream(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER));
+
+        assertSafeError(postBlockRequest(CORRELATION_ID),
+                HttpStatus.SERVICE_UNAVAILABLE.value(), "DOWNSTREAM_UNAVAILABLE");
+    }
+
+    @Test
+    void shouldMapInvalidDownstreamPayloadToBadGateway() throws Exception {
+        stubDownstream(aResponse()
+                .withStatus(HttpStatus.ACCEPTED.value())
+                .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .withBody(DOWNSTREAM_DETAILS));
+
+        assertSafeError(postBlockRequest(CORRELATION_ID), HttpStatus.BAD_GATEWAY.value(), "DOWNSTREAM_ERROR");
+    }
+
+    private void assertSafeError(HttpResponse<String> response, int expectedStatus, String expectedCode)
+            throws InterruptedException {
+        assertThat(response.statusCode()).isEqualTo(expectedStatus);
+        assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
+        assertThat(response.body())
+                .contains(expectedCode)
+                .contains("\"traceId\":\"" + CORRELATION_ID + "\"")
+                .doesNotContain(DOWNSTREAM_DETAILS);
+        awaitRequestJournal();
+        // Retryer.NEVER_RETRY: exatamente uma chamada ao downstream, mesmo em falha.
+        wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
+    }
+
+    // O WireMock pode registrar a requisicao depois de o cliente ja ter desistido (timeout/fault).
     private void awaitRequestJournal() throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5000;
         while (wireMock.findAll(postRequestedFor(urlEqualTo(API_PATH))).isEmpty()
@@ -147,28 +176,37 @@ class BloqueioCartaoIntegrationTest {
         }
     }
 
-    private HttpResponse<String> postBlockRequest(String requestBody, String correlationId)
-            throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + REQUEST_PATH))
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(CORRELATION_ID_HEADER, correlationId)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    private void stubDownstream(ResponseDefinitionBuilder response) {
+        wireMock.stubFor(post(urlEqualTo(API_PATH)).willReturn(response));
     }
 
-    private String validRequest() {
-        return """
-                {
-                  "cartaoId": "123456",
-                  "tipoBloqueio": "DEFINITIVO",
-                  "motivo": "SOLICITACAO_CLIENTE",
-                  "portadores": [
-                    {"portadorId": "987654"},
-                    {"portadorId": "456789"}
-                  ]
-                }
-                """;
+    private ResponseDefinitionBuilder acceptedResponse() {
+        return aResponse()
+                .withStatus(HttpStatus.ACCEPTED.value())
+                .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .withBody("""
+                        {"protocoloId":"protocol-123","status":"PROCESSING"}
+                        """);
+    }
+
+    private HttpResponse<String> postBlockRequest(String correlationId) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + REQUEST_PATH))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {
+                          "cartaoId": "123456",
+                          "tipoBloqueio": "DEFINITIVO",
+                          "motivo": "SOLICITACAO_CLIENTE",
+                          "portadores": [
+                            {"portadorId": "987654"},
+                            {"portadorId": "456789"}
+                          ]
+                        }
+                        """));
+        if (correlationId != null) {
+            request.header(CORRELATION_ID_HEADER, correlationId);
+        }
+        return httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 }
