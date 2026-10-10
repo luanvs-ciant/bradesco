@@ -16,6 +16,8 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -48,10 +50,11 @@ class BloqueioCartaoIntegrationTest {
     @DynamicPropertySource
     static void configureDownstream(DynamicPropertyRegistry registry) {
         wireMock.start();
-        registry.add("bloqueio-cartao.service.base-url", wireMock::baseUrl);
-        registry.add("bloqueio-cartao.service.api-key", () -> API_KEY);
-        registry.add("bloqueio-cartao.service.timeout", () -> 200);
-        registry.add("bloqueio-cartao.service.connect-timeout", () -> 1000);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", wireMock::baseUrl);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> 200);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
+                registry.add("bloqueio-cartao.path", () -> API_PATH);
+                registry.add("bloqueio-cartao.api-key", () -> API_KEY);
     }
 
     @AfterAll
@@ -99,24 +102,25 @@ class BloqueioCartaoIntegrationTest {
                         """)));
     }
 
-    @Test
-    void shouldMapDownstreamUnavailableResponseToServiceUnavailable() throws Exception {
+        @ParameterizedTest
+        @CsvSource({"503,DOWNSTREAM_UNAVAILABLE", "504,DOWNSTREAM_TIMEOUT"})
+        void shouldPreserveDownstreamUnavailableAndTimeoutResponses(int status, String code) throws Exception {
         wireMock.stubFor(post(urlEqualTo(API_PATH))
                 .willReturn(aResponse()
-                        .withStatus(HttpStatus.SERVICE_UNAVAILABLE.value())
+                                                .withStatus(status)
                         .withBody("downstream internal details")));
 
         HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
 
-        assertThat(response.statusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+                assertThat(response.statusCode()).isEqualTo(status);
         assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
-        assertThat(response.body()).contains("DOWNSTREAM_UNAVAILABLE")
+                assertThat(response.body()).contains(code)
                 .doesNotContain("downstream internal details");
-        wireMock.verify(postRequestedFor(urlEqualTo(API_PATH)));
+                wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
     }
 
     @Test
-    void shouldMapDownstreamTimeoutToGatewayTimeout() throws Exception {
+        void shouldMapDownstreamReadTimeoutToGatewayTimeout() throws Exception {
         wireMock.stubFor(post(urlEqualTo(API_PATH))
                 .willReturn(aResponse()
                         .withFixedDelay(1000)
@@ -128,10 +132,19 @@ class BloqueioCartaoIntegrationTest {
 
         HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
 
-        assertThat(response.statusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT.value());
+                assertThat(response.statusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT.value());
         assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
-        assertThat(response.body()).contains("DOWNSTREAM_TIMEOUT");
-        wireMock.verify(postRequestedFor(urlEqualTo(API_PATH)));
+                assertThat(response.body()).contains("DOWNSTREAM_TIMEOUT");
+                awaitRequestJournal();
+                wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
+    }
+
+    private void awaitRequestJournal() throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (wireMock.findAll(postRequestedFor(urlEqualTo(API_PATH))).isEmpty()
+                && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
     }
 
     private HttpResponse<String> postBlockRequest(String requestBody, String correlationId)

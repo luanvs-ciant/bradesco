@@ -1,16 +1,26 @@
 spring:
   application:
     name: bradesco
+  cloud:
+    openfeign:
+      client:
+        config:
+          bloqueioCartao:
+            url: "${BLOQUEIO_SERVICE_BASE_URL:http://localhost:8081}"
+            connectTimeout: ${BLOQUEIO_SERVICE_CONNECT_TIMEOUT:3000}
+            readTimeout: ${BLOQUEIO_SERVICE_TIMEOUT:5000}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /bff
 
 logging:
   level:
-    root: INFO
-    br.com.empresa.bff: DEBUG
+    root: ${LOG_LEVEL_ROOT:INFO}
+    br.com.empresa.bff: ${LOG_LEVEL_BR_COM_EMPRESA:DEBUG}
+    okhttp3: ${LOG_LEVEL_OKHTTP3:OFF}
+    org.springframework: ${LOG_LEVEL_ORG_SPRINGFRAMEWORK:INFO}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%X{correlationId}] [%thread] %-5level %logger %kvp - %msg%n"
 
@@ -21,27 +31,18 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
-rest-client:
-  timeout: 5000
-  connect-timeout: 3000
-
 bloqueio-cartao:
-  service:
-    base-url: "${BLOQUEIO_SERVICE_BASE_URL:http://localhost:8081}"
-    path: "${BLOQUEIO_SERVICE_PATH:/api/v1/bloqueios-cartao}"
-    api-key: "${BLOQUEIO_SERVICE_API_KEY:dummy-key}"
-    timeout: 5000
-    connect-timeout: 3000
+  path: "${BLOQUEIO_SERVICE_PATH:/api/v1/bloqueios-cartao}"
+  api-key: "${BLOQUEIO_SERVICE_API_KEY}"
 
-trace:
-  header:
-    user-id: X-Usuario-Id
+okhttp-configuracao-geral:
+  write-timeout-millis: ${ENV_HTTPCLIENT_CONFIG_DEFAULT_WRITE_TIMEOUT:5000}
+  retryOnConnectionFailure: false
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,metrics,info
-  endpoint:
-    health:
-      show-details: always
+okhttp-connection-pool:
+  max-idle-connections: ${ENV_OKHTTPCLIENT_POOL_MAX_IDLE_CONNECTIONS:20}
+  keep-alive-duration-segundos: ${ENV_OKHTTPCLIENT_POOL_KEEP_ALIVE_DURATION_SEGUNDOS:60}
+
+okhttp-dispatcher:
+  max-requests: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS:64}
+  max-requests-per-host: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS_PER_HOST:5}
