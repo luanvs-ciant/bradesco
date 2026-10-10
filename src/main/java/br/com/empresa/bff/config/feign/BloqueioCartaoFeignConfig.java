@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatusCode;
 
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
+import br.com.empresa.bff.observability.CorrelationId;
 import feign.Client;
 import feign.RequestInterceptor;
 import feign.Response;
@@ -72,9 +73,9 @@ public class BloqueioCartaoFeignConfig {
     public RequestInterceptor bloqueioCartaoRequestInterceptor() {
         return template -> {
             template.header("X-Api-Key", apiKey);
-            String correlationId = MDC.get("correlationId");
+            String correlationId = MDC.get(CorrelationId.MDC_KEY);
             if (correlationId != null) {
-                template.header("X-Correlation-ID", correlationId);
+                template.header(CorrelationId.HEADER, correlationId);
             }
         };
     }

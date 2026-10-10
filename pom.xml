@@ -29,7 +29,10 @@
 	<properties>
 		<java.version>25</java.version>
 		<spring-cloud.version>2025.1.2</spring-cloud.version>
-		 <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+		<!-- Cobertura minima validada no "mvnw verify" (alinhada ao quality gate padrao do Sonar) -->
+		<jacoco.line.minimum>0.80</jacoco.line.minimum>
+		<jacoco.branch.minimum>0.80</jacoco.branch.minimum>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -53,10 +56,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-restclient</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 		<dependency>
@@ -69,19 +68,7 @@
 			<version>3.1.0</version>
 		</dependency>
 
-		<!-- Validation -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-
 		<!-- Test Dependencies -->
-		<dependency>
-			<groupId>com.squareup.okhttp3</groupId>
-			<artifactId>mockwebserver</artifactId>
-			<version>4.12.0</version>
-			<scope>test</scope>
-		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -107,26 +94,92 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 
-			<!-- JaCoCo for Code Coverage -->
-		 <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+			<!-- Regras de build: versoes de Java/Maven e restricoes arquiteturais do padrao BFF -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>enforce-rules</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<requireJavaVersion>
+									<version>[${java.version},)</version>
+								</requireJavaVersion>
+								<requireMavenVersion>
+									<version>[3.9,)</version>
+								</requireMavenVersion>
+								<banDuplicatePomDependencyVersions/>
+								<bannedDependencies>
+									<message>O BFF nao possui persistencia: Entity, Repository e acesso direto a banco pertencem aos servicos de dominio.</message>
+									<excludes>
+										<exclude>org.springframework.boot:spring-boot-starter-data-jpa</exclude>
+										<exclude>org.springframework.boot:spring-boot-starter-jdbc</exclude>
+										<exclude>org.springframework.data:spring-data-jpa</exclude>
+										<exclude>jakarta.persistence:jakarta.persistence-api</exclude>
+										<exclude>org.hibernate.orm:hibernate-core</exclude>
+									</excludes>
+								</bannedDependencies>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Cobertura: relatorio (HTML/XML/CSV) ao fim dos testes e validacao de minimos no verify -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco-maven-plugin.version}</version>
+				<configuration>
+					<excludes>
+						<exclude>br/com/empresa/bff/BradescoApplication.class</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.line.minimum}</minimum>
+										</limit>
+										<limit>
+											<counter>BRANCH</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.branch.minimum}</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 

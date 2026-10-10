@@ -11,6 +11,7 @@ import br.com.empresa.bff.application.service.BloqueioCartaoApplicationService;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
 import br.com.empresa.bff.exception.GlobalExceptionHandler.ErrorResponse;
+import br.com.empresa.bff.observability.CorrelationId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -37,7 +38,7 @@ public class BloqueioCartaoController {
             description = "Aceita uma operação assíncrona. O motivo é opcional. "
                 + "A credencial X-Api-Key é configurada pelo servidor somente para o downstream e "
                 + "não deve ser enviada pelo consumidor.",
-            parameters = @Parameter(name = "X-Correlation-ID", in = ParameterIn.HEADER,
+            parameters = @Parameter(name = CorrelationId.HEADER, in = ParameterIn.HEADER,
                 description = "Opcional. Letras ASCII, números, ponto, hífen ou sublinhado, até 128 caracteres. "
                     + "Se estiver ausente ou inválido, o BFF gera um UUID.",
                 required = false,
@@ -45,37 +46,29 @@ public class BloqueioCartaoController {
                 example = "corr-123"))
         @ApiResponses({
             @ApiResponse(responseCode = "202", description = "Operação aceita para processamento",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = BloqueioCartaoResponse.class),
                     examples = @ExampleObject(value = "{\"protocoloId\":\"8f6d2c10\",\"status\":\"PROCESSING\"}"))),
             @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: campos inválidos, JSON malformado ou enum inválido",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
-                    schema = @Schema(type = "string")),
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "UNAUTHORIZED: autenticação necessária",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
-                    schema = @Schema(type = "string")),
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "FORBIDDEN: autorização negada",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR: falha inesperada",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "502", description = "DOWNSTREAM_ERROR: resposta de erro ou resposta ilegível do serviço",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "503", description = "DOWNSTREAM_UNAVAILABLE: falha de conexão ou HTTP 503 downstream",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "504", description = "DOWNSTREAM_TIMEOUT: timeout de conexao/leitura ou HTTP 504 downstream",
-                headers = @Header(name = "X-Correlation-ID", description = "Identificador da requisição",
+                headers = @Header(name = CorrelationId.HEADER, description = "Identificador da requisição",
                     schema = @Schema(type = "string")),
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
         })
