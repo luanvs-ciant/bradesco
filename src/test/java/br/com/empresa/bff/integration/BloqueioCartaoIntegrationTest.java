@@ -120,7 +120,7 @@ class BloqueioCartaoIntegrationTest {
     }
 
     @Test
-        void shouldMapDownstreamReadTimeoutToBadGateway() throws Exception {
+        void shouldMapDownstreamReadTimeoutToGatewayTimeout() throws Exception {
         wireMock.stubFor(post(urlEqualTo(API_PATH))
                 .willReturn(aResponse()
                         .withFixedDelay(1000)
@@ -132,9 +132,9 @@ class BloqueioCartaoIntegrationTest {
 
         HttpResponse<String> response = postBlockRequest(validRequest(), CORRELATION_ID);
 
-                assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_GATEWAY.value());
+                assertThat(response.statusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT.value());
         assertThat(response.headers().firstValue(CORRELATION_ID_HEADER)).contains(CORRELATION_ID);
-                assertThat(response.body()).contains("DOWNSTREAM_ERROR");
+                assertThat(response.body()).contains("DOWNSTREAM_TIMEOUT");
                 awaitRequestJournal();
                 wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
     }

@@ -297,7 +297,10 @@ class BloqueioCartaoClientTest {
 
                 assertThat(Duration.ofNanos(System.nanoTime() - started).toMillis())
                                 .isBetween((long) READ_TIMEOUT / 2, (long) READ_TIMEOUT + 2000);
-                assertBadGateway(exception);
+                assertThat(exception.getStatus()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+                var response = handler.handleIntegrationException(exception);
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+                assertThat(response.getBody().code()).isEqualTo("DOWNSTREAM_TIMEOUT");
                 takeRequest();
                 assertThat(SERVER.getRequestCount() - attempts).isEqualTo(1);
         }

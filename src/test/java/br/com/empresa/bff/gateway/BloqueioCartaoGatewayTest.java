@@ -7,7 +7,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,8 @@ import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
+import feign.Request;
+import feign.RetryableException;
 
 class BloqueioCartaoGatewayTest {
 
@@ -80,5 +85,20 @@ class BloqueioCartaoGatewayTest {
 
         assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
         assertEquals("Servi\u00e7o de bloqueio indispon\u00edvel", exception.getMessage());
+    }
+
+    @Test
+    void translatesTimeoutFailuresToGatewayTimeout() {
+        var domain = new BloqueioCartao("123456", TipoBloqueio.TEMPORARIO, null,
+                List.of(new Portador("987654")));
+        when(client.bloquear(mapper.toDownstreamRequest(domain)))
+                .thenThrow(new RetryableException(-1, "read timed out", Request.HttpMethod.POST,
+                        new SocketTimeoutException("read timed out"), (Long) null,
+                        Request.create(Request.HttpMethod.POST, "/", Map.of(), null, StandardCharsets.UTF_8, null)));
+
+        var exception = assertThrows(DownstreamIntegrationException.class,
+                () -> gateway.bloquear(domain));
+
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, exception.getStatus());
     }
 }
