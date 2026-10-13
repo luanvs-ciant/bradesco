@@ -30,46 +30,99 @@ O BFF **não** contém regra de negócio de bloqueio, não persiste dados e não
 
 ## Arquitetura
 
-```text
-          Consumidor (frontend / API Gateway)
-                        |
-                        v
-+----------------------- BFF -----------------------+
-|  CorrelationIdFilter     (observability)          |
-|        |                                          |
-|  BloqueioCartaoController        (controller)     |
-|        |  BloqueioCartaoRequest (DTO de entrada)  |
-|  BloqueioCartaoApplicationService (application)   |
-|        |  BloqueioCartaoMapper -> BloqueioCartao  |
-|  BloqueioCartaoGateway       (domain/gateway)     |
-|        |  BloqueioCartaoGatewayImpl  (gateway)    |
-|        |  BloqueioCartaoGatewayMapper             |
-|  BloqueioCartaoClient (OpenFeign + OkHttp)        |
-|                                                   |
-|  GlobalExceptionHandler      (exception)          |
-+------------------------|--------------------------+
-                         v
-            Serviço de domínio de bloqueio
+### Camadas
+
+As setas contínuas mostram quem chama quem; as tracejadas mostram a implementação da interface e o caminho das falhas.
+
+```mermaid
+flowchart TB
+    consumer(["Consumidor<br/>frontend / API Gateway"])
+
+    subgraph bff["BFF"]
+        direction TB
+        filter["<b>CorrelationIdFilter</b><br/>observability"]
+        controller["<b>BloqueioCartaoController</b><br/>controller"]
+        service["<b>BloqueioCartaoApplicationService</b><br/>application/service"]
+        port[["<b>BloqueioCartaoGateway</b><br/>domain/gateway · interface"]]
+        gateway["<b>BloqueioCartaoGatewayImpl</b><br/>gateway"]
+        client["<b>BloqueioCartaoClient</b><br/>gateway/client · OpenFeign + OkHttp"]
+        handler["<b>GlobalExceptionHandler</b><br/>exception"]
+
+        filter --> controller --> service --> port
+        gateway -. implementa .-> port
+        gateway --> client
+        controller -. falhas .-> handler
+    end
+
+    downstream[("Serviço de domínio<br/>de bloqueio")]
+
+    consumer -- "POST /bff/operacoes/bloqueio-cartoes" --> filter
+    client -- "POST {url}{path}<br/>X-Api-Key · X-Correlation-ID" --> downstream
+    handler -. "{code, message, traceId}" .-> consumer
 ```
 
-Estrutura de pacotes (`src/main/java/br/com/empresa/bff`):
+O Application Service depende só da interface `BloqueioCartaoGateway`, que fica no domínio. A implementação, o client Feign e a configuração HTTP ficam do lado de fora, no pacote `gateway`. Assim, nenhuma classe acima do gateway conhece HTTP, Feign ou o contrato do serviço de domínio.
 
-| Pacote | Conteúdo |
-|---|---|
-| `controller` / `controller/dto` | Endpoint REST e DTOs de entrada e saída da API. |
-| `application/service` | Execução da jornada no BFF. |
-| `mapper` | Conversão do DTO de entrada para o objeto de domínio. |
-| `domain/model` | Objetos de domínio (`BloqueioCartao`, `Portador`, `TipoBloqueio`, `ResultadoBloqueioCartao`). |
-| `domain/gateway` | Contrato (`BloqueioCartaoGateway`) da fronteira com o serviço externo. |
-| `gateway` | Implementação do gateway, DTOs e mapper do contrato downstream. |
-| `gateway/client` | HTTP client declarativo (OpenFeign). |
-| `config/feign` | Configuração do client: transporte OkHttp, headers, retry e decodificação de erros. |
-| `exception` | Contrato de erro padronizado e handler global. |
-| `observability` | Correlation ID (filtro, header e chave de MDC). |
+### Contratos por camada
+
+Cada fronteira tem o próprio contrato, e um mapper faz a conversão. Nenhum objeto atravessa duas fronteiras.
+
+```mermaid
+flowchart TB
+    subgraph ida["Requisição"]
+        direction LR
+        req["<b>BloqueioCartaoRequest</b><br/>API"]
+        model["<b>BloqueioCartao</b><br/>domínio"]
+        dreq["<b>BloqueioCartaoDownstreamRequest</b><br/>serviço de domínio"]
+        req -- "BloqueioCartaoMapper" --> model
+        model -- "BloqueioCartaoGatewayMapper" --> dreq
+    end
+
+    subgraph volta["Resposta"]
+        direction LR
+        res["<b>BloqueioCartaoResponse</b><br/>API"]
+        result["<b>ResultadoBloqueioCartao</b><br/>domínio"]
+        dres["<b>BloqueioCartaoDownstreamResponse</b><br/>serviço de domínio"]
+        dres -- "BloqueioCartaoGatewayMapper" --> result
+        result -- "Application Service" --> res
+    end
+
+    ida ~~~ volta
+```
+
+| Camada | Pacote | Requisição | Resposta |
+|---|---|---|---|
+| API | `controller/dto` | `BloqueioCartaoRequest` | `BloqueioCartaoResponse` |
+| Domínio | `domain/model` | `BloqueioCartao` | `ResultadoBloqueioCartao` |
+| Serviço de domínio | `gateway/dto` | `BloqueioCartaoDownstreamRequest` | `BloqueioCartaoDownstreamResponse` |
+
+**DTO da API ≠ objeto de domínio ≠ DTO downstream.** Uma mudança no contrato do serviço de domínio fica restrita ao pacote `gateway`; uma mudança no contrato da API fica restrita ao `controller`.
+
+### Pacotes
+
+```text
+src/main/java/br/com/empresa/bff/
+├── controller/                 Endpoint REST
+│   └── dto/                    Contrato da API
+│       ├── request/              BloqueioCartaoRequest, PortadorRequest
+│       └── response/             BloqueioCartaoResponse
+├── application/
+│   └── service/                BloqueioCartaoApplicationService
+├── mapper/                     BloqueioCartaoMapper  (API → domínio)
+├── domain/
+│   ├── model/                  BloqueioCartao, Portador, TipoBloqueio, ResultadoBloqueioCartao
+│   └── gateway/                BloqueioCartaoGateway  (interface da fronteira)
+├── gateway/                    BloqueioCartaoGatewayImpl
+│   ├── client/                   BloqueioCartaoClient  (OpenFeign)
+│   ├── dto/                      Contrato do serviço de domínio
+│   └── mapper/                   BloqueioCartaoGatewayMapper  (domínio ↔ downstream)
+├── config/
+│   └── feign/                  Transporte OkHttp, headers, retry e decodificação de erros
+├── exception/                  Contrato de erro e GlobalExceptionHandler
+└── observability/              Correlation ID: filtro, header e chave de MDC
+```
 
 Os pacotes `security` e `validation` fazem parte da estrutura padrão do BFF e estão reservados para evolução; hoje não contêm implementação. O pacote `authorization` da estrutura padrão foi omitido porque a autorização está fora do escopo deste scaffold.
-
-Os contratos de cada camada são separados: **DTO da API ≠ objeto de domínio ≠ DTO downstream**.
 
 ## Responsabilidades
 
