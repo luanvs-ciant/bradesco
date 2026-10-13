@@ -18,9 +18,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.cloud.openfeign.FeignClientFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -46,12 +48,16 @@ class BloqueioCartaoIntegrationTest {
     private static final String DOWNSTREAM_DETAILS = "downstream internal details";
     // Folga para o aquecimento do OkHttp na primeira chamada da JVM, que pode passar de 1s.
     private static final int READ_TIMEOUT_MILLIS = 2000;
+    private static final int WRITE_TIMEOUT_MILLIS = 3210;
 
     private static final WireMockServer wireMock =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private FeignClientFactory clientFactory;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -63,6 +69,7 @@ class BloqueioCartaoIntegrationTest {
         registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
         registry.add("bloqueio-cartao.path", () -> API_PATH);
         registry.add("bloqueio-cartao.api-key", () -> API_KEY);
+        registry.add("okhttp-configuracao-geral.write-timeout-millis", () -> WRITE_TIMEOUT_MILLIS);
     }
 
     @AfterAll
@@ -114,6 +121,21 @@ class BloqueioCartaoIntegrationTest {
         String generatedId = response.headers().firstValue(CORRELATION_ID_HEADER).orElseThrow();
         wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH))
                 .withHeader(CORRELATION_ID_HEADER, equalTo(generatedId)));
+    }
+
+    @Test
+    void shouldCallDownstreamThroughConfiguredOkHttpTransport() throws Exception {
+        var transport = clientFactory.getInstance("bloqueioCartao", okhttp3.OkHttpClient.class);
+        transport.connectionPool().evictAll();
+        stubDownstream(acceptedResponse());
+
+        assertThat(postBlockRequest(CORRELATION_ID).statusCode()).isEqualTo(HttpStatus.ACCEPTED.value());
+
+        // Se o Feign nao usar o Client OkHttp configurado, a chamada ainda funciona, mas este pool fica vazio
+        // e as configuracoes okhttp-* (pool, write timeout, retry de transporte) deixam de valer.
+        assertThat(transport.connectionPool().connectionCount()).isPositive();
+        assertThat(transport.writeTimeoutMillis()).isEqualTo(WRITE_TIMEOUT_MILLIS);
+        assertThat(transport.retryOnConnectionFailure()).isFalse();
     }
 
     @ParameterizedTest
