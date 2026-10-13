@@ -3,8 +3,6 @@ package br.com.empresa.bff.exception;
 public enum ErrorCode {
 
     VALIDATION_ERROR("Erro de validação"),
-    UNAUTHORIZED("Autenticação necessária"),
-    FORBIDDEN("Operação não autorizada"),
     DOWNSTREAM_TIMEOUT("Tempo limite do serviço excedido"),
     DOWNSTREAM_UNAVAILABLE("Serviço temporariamente indisponível"),
     DOWNSTREAM_ERROR("Erro na integração com o serviço"),

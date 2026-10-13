@@ -1,4 +1,4 @@
-package br.com.empresa.bff.controller;
+package br.com.empresa.bff.component;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -15,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.net.SocketTimeoutException;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -30,10 +29,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.server.ResponseStatusException;
 
 import br.com.empresa.bff.application.service.BloqueioCartaoApplicationService;
+import br.com.empresa.bff.controller.BloqueioCartaoController;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
@@ -186,11 +184,7 @@ class BloqueioCartaoControllerTests {
     static Stream<Arguments> serviceFailures() {
         return Stream.of(
                 Arguments.of(
-                        new ResponseStatusException(HttpStatus.FORBIDDEN, "secret"),
-                        HttpStatus.FORBIDDEN.value(),
-                        "FORBIDDEN"),
-                Arguments.of(
-                        new ResourceAccessException("secret", new SocketTimeoutException("secret")),
+                        new DownstreamIntegrationException(HttpStatus.GATEWAY_TIMEOUT, "secret"),
                         HttpStatus.GATEWAY_TIMEOUT.value(),
                         "DOWNSTREAM_TIMEOUT"),
                 Arguments.of(

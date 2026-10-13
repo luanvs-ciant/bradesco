@@ -24,19 +24,17 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger(CorrelationIdFilter.class);
     private static final Pattern VALID_ID = Pattern.compile("[A-Za-z0-9._-]{1,128}");
 
-    private static final String HEADER_NAME = "X-Correlation-ID";
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String suppliedId = request.getHeader(HEADER_NAME);
+        String suppliedId = request.getHeader(CorrelationId.HEADER);
         String correlationId = suppliedId != null && VALID_ID.matcher(suppliedId).matches()
                 ? suppliedId : UUID.randomUUID().toString();
-        String previousId = MDC.get("correlationId");
+        String previousId = MDC.get(CorrelationId.MDC_KEY);
         long startedAt = System.nanoTime();
 
-        MDC.put("correlationId", correlationId);
-        response.setHeader(HEADER_NAME, correlationId);
+        MDC.put(CorrelationId.MDC_KEY, correlationId);
+        response.setHeader(CorrelationId.HEADER, correlationId);
         try {
             filterChain.doFilter(request, response);
         } finally {
@@ -47,9 +45,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
                     .addKeyValue("durationMs", (System.nanoTime() - startedAt) / 1_000_000)
                     .log("Requisição finalizada");
             if (previousId == null) {
-                MDC.remove("correlationId");
+                MDC.remove(CorrelationId.MDC_KEY);
             } else {
-                MDC.put("correlationId", previousId);
+                MDC.put(CorrelationId.MDC_KEY, previousId);
             }
         }
     }

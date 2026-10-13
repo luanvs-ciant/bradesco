@@ -37,18 +37,16 @@ public class BloqueioCartaoGatewayImpl implements BloqueioCartaoGateway {
         } catch (DownstreamIntegrationException exception) {
             throw exception;
         } catch (RetryableException exception) {
+            // O Feign encapsula toda falha de I/O em RetryableException, com a IOException original como causa.
             if (exception.getCause() instanceof SocketTimeoutException) {
-                throw new DownstreamIntegrationException(
-                        HttpStatus.GATEWAY_TIMEOUT,
-                        "Tempo limite do serviço de bloqueio excedido");
+                throw new DownstreamIntegrationException(HttpStatus.GATEWAY_TIMEOUT,
+                        "Tempo limite do serviço de bloqueio excedido", exception);
             }
-            throw new DownstreamIntegrationException(
-                    HttpStatus.BAD_GATEWAY,
-                    "Serviço de bloqueio indisponível");
+            throw new DownstreamIntegrationException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Serviço de bloqueio indisponível", exception);
         } catch (RuntimeException exception) {
-            throw new DownstreamIntegrationException(
-                    HttpStatus.BAD_GATEWAY,
-                    "Serviço de bloqueio indisponível");
+            throw new DownstreamIntegrationException(HttpStatus.BAD_GATEWAY,
+                    "Resposta inválida do serviço de bloqueio", exception);
         }
     }
 }

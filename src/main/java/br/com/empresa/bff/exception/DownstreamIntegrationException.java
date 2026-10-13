@@ -7,7 +7,11 @@ public class DownstreamIntegrationException extends RuntimeException {
     private final HttpStatusCode status;
 
     public DownstreamIntegrationException(HttpStatusCode status, String message) {
-        super(message);
+        this(status, message, null);
+    }
+
+    public DownstreamIntegrationException(HttpStatusCode status, String message, Throwable cause) {
+        super(message, cause);
         this.status = status;
     }
 
