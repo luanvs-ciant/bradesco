@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -23,10 +24,10 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.cloud.openfeign.FeignClientFactory;
 import org.springframework.cloud.openfeign.FeignClientProperties;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -81,8 +82,9 @@ class BloqueioCartaoClientTest {
         private GlobalExceptionHandler handler;
 
         @DynamicPropertySource
-        static void properties(DynamicPropertyRegistry registry) {
-                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", () -> SERVER.url("/").toString());
+        static void properties(DynamicPropertyRegistry registry) throws IOException {
+                SERVER.start(InetAddress.getByName("127.0.0.1"), 0);
+                registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", BloqueioCartaoClientTest::serverUrl);
                 registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> READ_TIMEOUT);
                 registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> CONNECT_TIMEOUT);
                 registry.add("bloqueio-cartao.path", () -> PATH);
@@ -164,7 +166,7 @@ class BloqueioCartaoClientTest {
                                 .getConfig().get("bloqueioCartao");
                 assertThat(properties.getConnectTimeout()).isEqualTo(CONNECT_TIMEOUT);
                 assertThat(properties.getReadTimeout()).isEqualTo(READ_TIMEOUT);
-                assertThat(properties.getUrl()).isEqualTo(SERVER.url("/").toString());
+                assertThat(properties.getUrl()).isEqualTo(serverUrl());
                 assertThat(clientFactory.getInstance("bloqueioCartao", Retryer.class)).isSameAs(Retryer.NEVER_RETRY);
                 assertThat(applicationContext.getBeansOfType(Client.class)).isEmpty();
                 assertThat(applicationContext.getBeansOfType(ErrorDecoder.class)).isEmpty();
@@ -333,6 +335,10 @@ class BloqueioCartaoClientTest {
                 var response = handler.handleIntegrationException(exception);
                 assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                 assertThat(response.getBody().code()).isEqualTo("DOWNSTREAM_ERROR");
+        }
+
+        private static String serverUrl() {
+                return SERVER.url("/").newBuilder().host("127.0.0.1").build().toString();
         }
 
         private RecordedRequest takeRequest() throws InterruptedException {
