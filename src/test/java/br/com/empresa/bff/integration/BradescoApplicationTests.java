@@ -10,10 +10,12 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.cloud.openfeign.FeignClientProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.env.StandardEnvironment;
@@ -78,14 +80,8 @@ class BradescoApplicationTests {
 
 	@Test
 	void shouldNotStartWithoutDownstreamApiKey() {
-		// Carrega o application.yml real sem variaveis de ambiente: a API key nao pode ter valor padrao.
-		var runner = new ApplicationContextRunner()
-				.withInitializer(context -> {
-					var sources = context.getEnvironment().getPropertySources();
-					sources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
-					sources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
-				})
-				.withInitializer(new ConfigDataApplicationContextInitializer())
+		// A API key e um segredo: nao pode ter valor padrao no application.yml.
+		var runner = applicationYmlWithoutEnvironment()
 				.withBean(PropertySourcesPlaceholderConfigurer.class, PropertySourcesPlaceholderConfigurer::new)
 				.withUserConfiguration(BloqueioCartaoFeignConfig.class);
 
@@ -93,6 +89,33 @@ class BradescoApplicationTests {
 				.getFailure().hasStackTraceContaining("BLOQUEIO_SERVICE_API_KEY"));
 		runner.withPropertyValues("bloqueio-cartao.api-key=test-key")
 				.run(context -> assertThat(context).hasNotFailed());
+	}
+
+	@Test
+	void shouldApplyFeignClientDefaultsFromApplicationYml() {
+		// Chaves do Feign com erro de digitacao sao ignoradas sem erro e o Feign usa os padroes dele.
+		applicationYmlWithoutEnvironment().run(context -> {
+			var clients = Binder.get(context.getEnvironment())
+					.bind("spring.cloud.openfeign.client", FeignClientProperties.class)
+					.get().getConfig();
+
+			assertThat(clients).containsKey("bloqueioCartao");
+			var client = clients.get("bloqueioCartao");
+			assertThat(client.getUrl()).isEqualTo("http://localhost:8081");
+			assertThat(client.getConnectTimeout()).isEqualTo(3000);
+			assertThat(client.getReadTimeout()).isEqualTo(5000);
+		});
+	}
+
+	// Carrega somente o application.yml real, sem variaveis de ambiente nem propriedades de sistema.
+	private static ApplicationContextRunner applicationYmlWithoutEnvironment() {
+		return new ApplicationContextRunner()
+				.withInitializer(context -> {
+					var sources = context.getEnvironment().getPropertySources();
+					sources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
+					sources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
+				})
+				.withInitializer(new ConfigDataApplicationContextInitializer());
 	}
 
 }
