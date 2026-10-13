@@ -46,12 +46,14 @@ class BloqueioCartaoIntegrationTest {
     private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
     private static final String CORRELATION_ID = "integration-test-123";
     private static final String DOWNSTREAM_DETAILS = "downstream internal details";
+    // IP fixo para nao depender de como a maquina resolve "localhost" (IPv4/IPv6, VPN, proxy).
+    private static final String LOOPBACK = "127.0.0.1";
     // Folga para o aquecimento do OkHttp na primeira chamada da JVM, que pode passar de 1s.
     private static final int READ_TIMEOUT_MILLIS = 2000;
     private static final int WRITE_TIMEOUT_MILLIS = 3210;
 
     private static final WireMockServer wireMock =
-            new WireMockServer(WireMockConfiguration.options().dynamicPort());
+            new WireMockServer(WireMockConfiguration.options().bindAddress(LOOPBACK).dynamicPort());
 
     @Value("${local.server.port}")
     private int port;
@@ -64,7 +66,8 @@ class BloqueioCartaoIntegrationTest {
     @DynamicPropertySource
     static void configureDownstream(DynamicPropertyRegistry registry) {
         wireMock.start();
-        registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url", wireMock::baseUrl);
+        registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.url",
+                () -> "http://" + LOOPBACK + ":" + wireMock.port());
         registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.readTimeout", () -> READ_TIMEOUT_MILLIS);
         registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
         registry.add("bloqueio-cartao.path", () -> API_PATH);
@@ -213,7 +216,7 @@ class BloqueioCartaoIntegrationTest {
 
     private HttpResponse<String> postBlockRequest(String correlationId) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + REQUEST_PATH))
+                .uri(URI.create("http://" + LOOPBACK + ":" + port + REQUEST_PATH))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .POST(HttpRequest.BodyPublishers.ofString("""
                         {
