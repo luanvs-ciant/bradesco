@@ -65,26 +65,22 @@ O Application Service depende só da interface `BloqueioCartaoGateway`, que fica
 
 ### Contratos por camada
 
-Cada fronteira tem o próprio contrato, e um mapper faz a conversão. Nenhum objeto atravessa duas fronteiras.
+A API tem o próprio contrato. Um mapper MapStruct só é criado quando a conversão for necessária, ou seja, quando os atributos de origem e destino forem diferentes. Hoje, o objeto de domínio `BloqueioCartao` é o corpo enviado ao serviço de domínio, sem DTO nem mapper de request no gateway.
 
 ```mermaid
 flowchart TB
     subgraph ida["Requisição"]
         direction LR
         req["<b>BloqueioCartaoRequest</b><br/>API"]
-        model["<b>BloqueioCartao</b><br/>domínio"]
-        dreq["<b>BloqueioCartaoDownstreamRequest</b><br/>serviço de domínio"]
+        model["<b>BloqueioCartao</b><br/>domínio · corpo enviado ao serviço de domínio"]
         req -- "BloqueioCartaoMapper" --> model
-        model -- "BloqueioCartaoGatewayMapper" --> dreq
     end
 
     subgraph volta["Resposta"]
         direction LR
         res["<b>BloqueioCartaoResponse</b><br/>API"]
-        result["<b>ResultadoBloqueioCartao</b><br/>domínio"]
         dres["<b>BloqueioCartaoDownstreamResponse</b><br/>serviço de domínio"]
-        dres -- "BloqueioCartaoGatewayMapper" --> result
-        result -- "Application Service" --> res
+        dres -- "BloqueioCartaoResponseMapper" --> res
     end
 
     ida ~~~ volta
@@ -93,10 +89,18 @@ flowchart TB
 | Camada | Pacote | Requisição | Resposta |
 |---|---|---|---|
 | API | `controller/dto` | `BloqueioCartaoRequest` | `BloqueioCartaoResponse` |
-| Domínio | `domain/model` | `BloqueioCartao` | `ResultadoBloqueioCartao` |
-| Serviço de domínio | `gateway/dto` | `BloqueioCartaoDownstreamRequest` | `BloqueioCartaoDownstreamResponse` |
+| Domínio | `domain/model` | `BloqueioCartao` | — |
+| Serviço de domínio | `gateway/dto` | o próprio `BloqueioCartao` | `BloqueioCartaoDownstreamResponse` |
 
-**DTO da API ≠ objeto de domínio ≠ DTO downstream.** Uma mudança no contrato do serviço de domínio fica restrita ao pacote `gateway`; uma mudança no contrato da API fica restrita ao `controller`.
+**DTO da API ≠ objeto de domínio.** Uma mudança no contrato da API fica restrita ao `controller`. Na requisição, o domínio é serializado direto para o serviço de domínio; o campo `Portador.id` usa `@JsonProperty("portadorId")` para sair com o nome que o serviço espera.
+
+**Atenção:** uma mudança no contrato de requisição do serviço de domínio (renomear um campo, por exemplo) chega ao modelo de domínio e ao `BloqueioCartaoMapper`. Na resposta, o contrato continua isolado em `BloqueioCartaoDownstreamResponse`. Se os atributos da requisição ao serviço de domínio passarem a diferir do domínio ou do DTO de request do controller, crie um DTO downstream e um mapper MapStruct (veja [Padrão de mapeamento](#padrão-de-mapeamento)).
+
+### Padrão de mapeamento
+
+- Todas as conversões entre contratos usam MapStruct, com `@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)`.
+- Não há mapper manual. Campo sem origem correspondente quebra o build.
+- **DTO downstream de requisição**: só se cria um DTO downstream (com mapper MapStruct) quando os atributos da requisição ao serviço de domínio forem diferentes dos atributos do objeto de domínio ou do DTO de request do controller. Enquanto forem iguais, o objeto de domínio é enviado direto ao serviço de domínio, sem DTO nem mapper de requisição no gateway.
 
 ### Pacotes
 
@@ -108,14 +112,14 @@ src/main/java/br/com/empresa/bff/
 │       └── response/             BloqueioCartaoResponse
 ├── application/
 │   └── service/                BloqueioCartaoApplicationService
-├── mapper/                     BloqueioCartaoMapper  (API → domínio)
+├── mapper/                     BloqueioCartaoMapper  (API → domínio, MapStruct)
+│                               BloqueioCartaoResponseMapper  (domínio → API, MapStruct)
 ├── domain/
-│   ├── model/                  BloqueioCartao, Portador, TipoBloqueio, ResultadoBloqueioCartao
+│   ├── model/                  BloqueioCartao, Portador, TipoBloqueio
 │   └── gateway/                BloqueioCartaoGateway  (interface da fronteira)
 ├── gateway/                    BloqueioCartaoGatewayImpl
 │   ├── client/                   BloqueioCartaoClient  (OpenFeign)
-│   ├── dto/                      Contrato do serviço de domínio
-│   └── mapper/                   BloqueioCartaoGatewayMapper  (domínio ↔ downstream)
+│   ├── dto/                      BloqueioCartaoDownstreamResponse  (resposta do serviço de domínio)
 ├── config/
 │   └── feign/                  Transporte OkHttp, headers, retry e decodificação de erros
 ├── exception/                  Contrato de erro e GlobalExceptionHandler
@@ -129,9 +133,10 @@ Os pacotes `security` e `validation` fazem parte da estrutura padrão do BFF e e
 | Componente | Responsável por | Não deve |
 |---|---|---|
 | `BloqueioCartaoController` | Expor `POST /operacoes/bloqueio-cartoes`, validar o payload (Bean Validation), documentar o contrato OpenAPI e responder `202`. | Conter regra de negócio ou chamar o client. |
-| `BloqueioCartaoApplicationService` | Coordenar a jornada: converter para o domínio, chamar o gateway e montar a resposta. | Conhecer detalhes HTTP. |
-| `BloqueioCartaoMapper` | Converter `BloqueioCartaoRequest` para `BloqueioCartao`. | — |
-| `BloqueioCartaoGatewayImpl` | Converter o domínio para o contrato downstream, chamar o client e traduzir falhas de integração. | Expor detalhes do downstream ao consumidor. |
+| `BloqueioCartaoApplicationService` | Coordenar a jornada: converter para o domínio, chamar o gateway e delegar a montagem da resposta ao `BloqueioCartaoResponseMapper`. | Conhecer detalhes HTTP. |
+| `BloqueioCartaoMapper` | Converter `BloqueioCartaoRequest` para `BloqueioCartao` (MapStruct). | — |
+| `BloqueioCartaoResponseMapper` | Converter `BloqueioCartaoDownstreamResponse` para `BloqueioCartaoResponse` (MapStruct). | — |
+| `BloqueioCartaoGatewayImpl` | Chamar o client com o objeto de domínio e traduzir falhas de integração. | Expor detalhes do downstream ao consumidor. |
 | `BloqueioCartaoClient` | Comunicação HTTP com o serviço de domínio. | Conter regra de negócio. |
 | `BloqueioCartaoFeignConfig` | Transporte OkHttp, `X-Api-Key`, propagação do correlation ID, desligar retry e decodificar respostas de erro. | — |
 | `GlobalExceptionHandler` | Converter exceções no contrato de erro `{code, message, traceId}`. | Retornar stack trace ou dados internos. |
@@ -142,9 +147,9 @@ Os pacotes `security` e `validation` fazem parte da estrutura padrão do BFF e e
 1. O `CorrelationIdFilter` obtém ou gera o `X-Correlation-ID` e o grava no MDC.
 2. O `BloqueioCartaoController` desserializa e valida o `BloqueioCartaoRequest`. Payload inválido → `400`.
 3. O `BloqueioCartaoApplicationService` usa o `BloqueioCartaoMapper` para criar o objeto de domínio `BloqueioCartao`.
-4. O `BloqueioCartaoGatewayImpl` converte o domínio para `BloqueioCartaoDownstreamRequest` e chama o `BloqueioCartaoClient`.
+4. O `BloqueioCartaoGatewayImpl` chama o `BloqueioCartaoClient` com o objeto de domínio `BloqueioCartao`.
 5. O client envia `POST {url}{path}` ao serviço de domínio com `X-Api-Key` e `X-Correlation-ID`.
-6. A resposta do downstream é convertida para `ResultadoBloqueioCartao` e depois para `BloqueioCartaoResponse`.
+6. A resposta do downstream (`BloqueioCartaoDownstreamResponse`) é convertida para `BloqueioCartaoResponse` pelo `BloqueioCartaoResponseMapper`.
 7. O BFF responde `202 Accepted` com o protocolo e o status da operação.
 8. Em qualquer falha, o `GlobalExceptionHandler` responde com o contrato de erro padronizado (veja [Timeouts e tratamento de erros](#timeouts-e-tratamento-de-erros)).
 

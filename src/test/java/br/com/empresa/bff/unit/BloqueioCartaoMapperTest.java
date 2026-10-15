@@ -13,11 +13,26 @@ import br.com.empresa.bff.controller.dto.request.PortadorRequest;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
-import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
+import br.com.empresa.bff.mapper.BloqueioCartaoMapperImpl;
 
 class BloqueioCartaoMapperTest {
 
-    private final BloqueioCartaoMapper mapper = new BloqueioCartaoMapper();
+    private final BloqueioCartaoMapperImpl mapper = new BloqueioCartaoMapperImpl();
+
+    @Test
+    void returnsNullWhenRequestIsNull() {
+        assertNull(mapper.toDomain(null));
+    }
+
+    @Test
+    void mapsNullTipoBloqueioAndPortadoresToNull() {
+        var request = new BloqueioCartaoRequest("123456", null, null, null);
+
+        var result = mapper.toDomain(request);
+
+        assertNull(result.tipoBloqueio());
+        assertNull(result.portadores());
+    }
 
     @Test
     void mapsRequestToDomain() {
