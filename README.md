@@ -398,6 +398,23 @@ Os testes seguem os níveis do padrão BFF e **não dependem de nenhum serviço 
 | Componente | `component` | `@WebMvcTest`, MockMvc | Controller: status HTTP, validação, serialização/desserialização, contrato de erro, correlation ID. |
 | Integração | `integration` | `@SpringBootTest` + WireMock | BFF real → HTTP client → downstream simulado: método, rota, headers, payload, `202`, erros HTTP, timeout, falha de conexão, ausência de retry e contrato OpenAPI. |
 
+### Fixtures JSON reutilizáveis
+
+Os dados compartilhados ficam em [`src/test/resources/fixtures/bloqueio-cartao`](src/test/resources/fixtures/bloqueio-cartao):
+
+- `request-with-reason.json`: bloqueio definitivo com motivo e dois portadores;
+- `request-without-reason.json`: bloqueio temporário sem o campo opcional `motivo`;
+- `response-processing.json`: resultado de processamento com protocolo.
+
+O utilitário de teste [`JsonFixtures`](src/test/java/br/com/empresa/bff/support/JsonFixtures.java) usa caminhos relativos a `fixtures/` e permite carregar o mesmo JSON como DTO/modelo ou como corpo HTTP:
+
+```java
+var request = JsonFixtures.read("bloqueio-cartao/request-with-reason.json", BloqueioCartaoRequest.class);
+var body = JsonFixtures.json("bloqueio-cartao/request-with-reason.json");
+```
+
+Cada chamada a `read` desserializa uma nova instância, sem compartilhar objetos mutáveis entre testes e sem iniciar o Spring. Arquivos ausentes, ilegíveis, com campos desconhecidos ou incompatíveis com o tipo solicitado falham com `AssertionError`.
+
 ### Comandos
 
 ```powershell

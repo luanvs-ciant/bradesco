@@ -35,27 +35,17 @@ import br.com.empresa.bff.controller.BloqueioCartaoController;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
+import br.com.empresa.bff.support.JsonFixtures;
 
 @WebMvcTest(BloqueioCartaoController.class)
 class BloqueioCartaoControllerTests {
 
     private static final String REQUEST_PATH = "/operacoes/bloqueio-cartoes";
     private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
-    private static final String VALID_REQUEST_WITH_REASON = """
-            {
-              "cartaoId": "123456",
-              "tipoBloqueio": "DEFINITIVO",
-              "motivo": "SOLICITACAO_CLIENTE",
-              "portadores": [{"portadorId": "987654"}, {"portadorId": "456789"}]
-            }
-            """;
-    private static final String VALID_REQUEST_WITHOUT_REASON = """
-            {
-              "cartaoId": "123456",
-              "tipoBloqueio": "TEMPORARIO",
-              "portadores": [{"portadorId": "987654"}]
-            }
-            """;
+    private static final String VALID_REQUEST_WITH_REASON =
+            JsonFixtures.json("bloqueio-cartao/request-with-reason.json");
+    private static final String VALID_REQUEST_WITHOUT_REASON =
+            JsonFixtures.json("bloqueio-cartao/request-without-reason.json");
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,7 +56,7 @@ class BloqueioCartaoControllerTests {
     @Test
     void shouldAcceptRequestAndPreserveHttpAndJsonContracts() throws Exception {
         when(applicationService.bloquear(any()))
-                .thenReturn(new BloqueioCartaoResponse("protocol-123", "PROCESSING"));
+                .thenReturn(JsonFixtures.read("bloqueio-cartao/response-processing.json", BloqueioCartaoResponse.class));
 
         mockMvc.perform(post(REQUEST_PATH)
                         .header(CORRELATION_ID_HEADER, "corr-123")
@@ -74,9 +64,8 @@ class BloqueioCartaoControllerTests {
                         .content(VALID_REQUEST_WITH_REASON))
                 .andExpect(status().isAccepted())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("""
-                        {"protocoloId":"protocol-123","status":"PROCESSING"}
-                        """, JsonCompareMode.STRICT))
+                .andExpect(content().json(JsonFixtures.json("bloqueio-cartao/response-processing.json"),
+                        JsonCompareMode.STRICT))
                 .andExpect(header().string(CORRELATION_ID_HEADER, "corr-123"));
 
         ArgumentCaptor<BloqueioCartaoRequest> requestCaptor =
@@ -95,7 +84,7 @@ class BloqueioCartaoControllerTests {
     @Test
     void shouldAcceptRequestWhenOptionalReasonIsOmitted() throws Exception {
         when(applicationService.bloquear(any()))
-                .thenReturn(new BloqueioCartaoResponse("protocol-123", "PROCESSING"));
+                .thenReturn(JsonFixtures.read("bloqueio-cartao/response-processing.json", BloqueioCartaoResponse.class));
 
         mockMvc.perform(post(REQUEST_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -214,7 +203,7 @@ class BloqueioCartaoControllerTests {
     @Test
     void shouldGenerateCorrelationIdWhenHeaderIsOmitted() throws Exception {
         when(applicationService.bloquear(any()))
-                .thenReturn(new BloqueioCartaoResponse("protocol-123", "PROCESSING"));
+                .thenReturn(JsonFixtures.read("bloqueio-cartao/response-processing.json", BloqueioCartaoResponse.class));
 
         mockMvc.perform(post(REQUEST_PATH)
                         .contentType(MediaType.APPLICATION_JSON)

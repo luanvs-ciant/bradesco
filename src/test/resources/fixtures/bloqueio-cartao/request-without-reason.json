@@ -1,0 +1,7 @@
+{
+  "cartaoId": "123456",
+  "tipoBloqueio": "TEMPORARIO",
+  "portadores": [
+    {"portadorId": "987654"}
+  ]
+}

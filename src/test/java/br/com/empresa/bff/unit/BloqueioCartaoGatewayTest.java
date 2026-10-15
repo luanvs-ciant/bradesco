@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,46 +18,46 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 import br.com.empresa.bff.domain.model.BloqueioCartao;
-import br.com.empresa.bff.domain.model.Portador;
-import br.com.empresa.bff.domain.model.TipoBloqueio;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.BloqueioCartaoGatewayImpl;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
+import br.com.empresa.bff.support.JsonFixtures;
 import feign.Request;
 import feign.RetryableException;
 
 class BloqueioCartaoGatewayTest {
 
-    private static final BloqueioCartao BLOQUEIO = new BloqueioCartao(
-            "123456", TipoBloqueio.TEMPORARIO, null, List.of(new Portador("987654")));
+    private BloqueioCartao bloqueio;
 
     private BloqueioCartaoClient client;
     private BloqueioCartaoGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
+        bloqueio = JsonFixtures.read("bloqueio-cartao/request-without-reason.json", BloqueioCartao.class);
         client = mock(BloqueioCartaoClient.class);
         gateway = new BloqueioCartaoGatewayImpl(client);
     }
 
     @Test
     void sendsDomainToClientAndReturnsDownstreamResponse() {
-        var downstreamResponse = new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING");
-        when(client.bloquear(BLOQUEIO)).thenReturn(downstreamResponse);
+        var downstreamResponse = JsonFixtures.read(
+                "bloqueio-cartao/response-processing.json", BloqueioCartaoDownstreamResponse.class);
+        when(client.bloquear(bloqueio)).thenReturn(downstreamResponse);
 
-        var result = gateway.bloquear(BLOQUEIO);
+        var result = gateway.bloquear(bloqueio);
 
         assertSame(downstreamResponse, result);
-        verify(client).bloquear(BLOQUEIO);
+        verify(client).bloquear(bloqueio);
     }
 
     @Test
     void propagatesDownstreamHttpErrors() {
         var failure = new DownstreamIntegrationException(HttpStatus.INTERNAL_SERVER_ERROR, "servico indisponivel");
-        when(client.bloquear(BLOQUEIO)).thenThrow(failure);
+        when(client.bloquear(bloqueio)).thenThrow(failure);
 
-        var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(BLOQUEIO));
+        var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(bloqueio));
 
         assertSame(failure, exception);
     }
@@ -83,9 +82,9 @@ class BloqueioCartaoGatewayTest {
     }
 
     private DownstreamIntegrationException assertTranslated(RuntimeException failure, HttpStatus expectedStatus) {
-        when(client.bloquear(BLOQUEIO)).thenThrow(failure);
+        when(client.bloquear(bloqueio)).thenThrow(failure);
 
-        var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(BLOQUEIO));
+        var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(bloqueio));
 
         assertEquals(expectedStatus, exception.getStatus());
         return exception;
