@@ -1,23 +1,19 @@
 package br.com.empresa.bff.mapper;
 
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
+import br.com.empresa.bff.controller.dto.request.PortadorRequest;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
-import br.com.empresa.bff.domain.model.TipoBloqueio;
 
-@Component
-public class BloqueioCartaoMapper {
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface BloqueioCartaoMapper {
 
-    public BloqueioCartao toDomain(BloqueioCartaoRequest request) {
-        return new BloqueioCartao(
-                request.cartaoId(),
-                TipoBloqueio.valueOf(request.tipoBloqueio().name()),
-                request.motivo(),
-                request.portadores().stream()
-                        .map(portador -> new Portador(portador.portadorId()))
-                        .toList()
-        );
-    }
+    BloqueioCartao toDomain(BloqueioCartaoRequest request);
+
+    @Mapping(target = "id", source = "portadorId")
+    Portador toPortador(PortadorRequest request);
 }

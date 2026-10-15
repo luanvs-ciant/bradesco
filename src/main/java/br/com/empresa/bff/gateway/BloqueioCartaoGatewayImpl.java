@@ -10,6 +10,7 @@ import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
+import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapper;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 import feign.RetryableException;
 
@@ -18,12 +19,15 @@ public class BloqueioCartaoGatewayImpl implements BloqueioCartaoGateway {
 
     private final BloqueioCartaoClient client;
     private final BloqueioCartaoGatewayMapper mapper;
+    private final BloqueioCartaoDownstreamResponseMapper responseMapper;
 
     public BloqueioCartaoGatewayImpl(
             BloqueioCartaoClient client,
-            BloqueioCartaoGatewayMapper mapper) {
+            BloqueioCartaoGatewayMapper mapper,
+            BloqueioCartaoDownstreamResponseMapper responseMapper) {
         this.client = client;
         this.mapper = mapper;
+        this.responseMapper = responseMapper;
     }
 
     @Override
@@ -33,11 +37,10 @@ public class BloqueioCartaoGatewayImpl implements BloqueioCartaoGateway {
         try {
             var response = client.bloquear(request);
 
-            return mapper.toResult(response);
+            return responseMapper.toResult(response);
         } catch (DownstreamIntegrationException exception) {
             throw exception;
         } catch (RetryableException exception) {
-            // O Feign encapsula toda falha de I/O em RetryableException, com a IOException original como causa.
             if (exception.getCause() instanceof SocketTimeoutException) {
                 throw new DownstreamIntegrationException(HttpStatus.GATEWAY_TIMEOUT,
                         "Tempo limite do serviço de bloqueio excedido", exception);

@@ -1,6 +1,7 @@
 package br.com.empresa.bff.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -26,7 +27,9 @@ import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.BloqueioCartaoGatewayImpl;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
-import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
+import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapper;
+import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapperImpl;
+import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapperImpl;
 import feign.Request;
 import feign.RetryableException;
 
@@ -35,14 +38,29 @@ class BloqueioCartaoGatewayTest {
     private static final BloqueioCartao BLOQUEIO = new BloqueioCartao(
             "123456", TipoBloqueio.TEMPORARIO, null, List.of(new Portador("987654")));
 
-    private final BloqueioCartaoGatewayMapper mapper = new BloqueioCartaoGatewayMapper();
+    private final BloqueioCartaoGatewayMapperImpl mapper = new BloqueioCartaoGatewayMapperImpl();
+    private final BloqueioCartaoDownstreamResponseMapper responseMapper = new BloqueioCartaoDownstreamResponseMapperImpl();
     private BloqueioCartaoClient client;
     private BloqueioCartaoGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
         client = mock(BloqueioCartaoClient.class);
-        gateway = new BloqueioCartaoGatewayImpl(client, mapper);
+        gateway = new BloqueioCartaoGatewayImpl(client, mapper, responseMapper);
+    }
+
+    @Test
+    void mapsDomainWithNullTipoBloqueioAndPortadoresToNull() {
+        var bloqueio = new BloqueioCartao("123456", null, null, null);
+        var request = mapper.toDownstreamRequest(bloqueio);
+
+        assertNull(request.tipoBloqueio());
+        assertNull(request.portadores());
+    }
+
+    @Test
+    void returnsNullDownstreamRequestWhenBloqueioIsNull() {
+        assertNull(mapper.toDownstreamRequest(null));
     }
 
     @Test
