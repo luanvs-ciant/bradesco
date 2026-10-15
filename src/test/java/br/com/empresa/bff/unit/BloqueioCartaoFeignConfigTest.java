@@ -15,6 +15,10 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 
 import br.com.empresa.bff.config.feign.BloqueioCartaoFeignConfig;
+import br.com.empresa.bff.config.feign.BloqueioCartaoProperties;
+import br.com.empresa.bff.config.feign.BloqueioCartaoProperties.ConnectionPool;
+import br.com.empresa.bff.config.feign.BloqueioCartaoProperties.Dispatcher;
+import br.com.empresa.bff.config.feign.BloqueioCartaoProperties.OkHttp;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.observability.CorrelationId;
 import feign.Request;
@@ -27,7 +31,8 @@ class BloqueioCartaoFeignConfigTest {
     private static final String API_KEY = "test-api-key";
 
     private final BloqueioCartaoFeignConfig config =
-            new BloqueioCartaoFeignConfig(API_KEY, 321, false, 1, 60, 12, 2);
+            new BloqueioCartaoFeignConfig(new BloqueioCartaoProperties("/bloqueios", API_KEY,
+                    new OkHttp(321, false, new ConnectionPool(1, 60), new Dispatcher(12, 2))));
 
     @AfterEach
     void clearContext() {

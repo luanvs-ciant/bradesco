@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatusCode;
 
@@ -16,45 +16,28 @@ import feign.RequestInterceptor;
 import feign.Response;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
+import lombok.RequiredArgsConstructor;
 import okhttp3.ConnectionPool;
 import okhttp3.Dispatcher;
 
+@EnableConfigurationProperties(BloqueioCartaoProperties.class)
+@RequiredArgsConstructor
 public class BloqueioCartaoFeignConfig {
 
-    private final String apiKey;
-    private final int writeTimeout;
-    private final boolean retryOnConnectionFailure;
-    private final int maxIdleConnections;
-    private final long keepAliveDurationSeconds;
-    private final int maxRequests;
-    private final int maxRequestsPerHost;
-
-    public BloqueioCartaoFeignConfig(
-            @Value("${bloqueio-cartao.api-key}") String apiKey,
-            @Value("${okhttp-configuracao-geral.write-timeout-millis}") int writeTimeout,
-            @Value("${okhttp-configuracao-geral.retryOnConnectionFailure}") boolean retryOnConnectionFailure,
-            @Value("${okhttp-connection-pool.max-idle-connections}") int maxIdleConnections,
-            @Value("${okhttp-connection-pool.keep-alive-duration-segundos}") long keepAliveDurationSeconds,
-            @Value("${okhttp-dispatcher.max-requests}") int maxRequests,
-            @Value("${okhttp-dispatcher.max-requests-per-host}") int maxRequestsPerHost) {
-        this.apiKey = apiKey;
-        this.writeTimeout = writeTimeout;
-        this.retryOnConnectionFailure = retryOnConnectionFailure;
-        this.maxIdleConnections = maxIdleConnections;
-        this.keepAliveDurationSeconds = keepAliveDurationSeconds;
-        this.maxRequests = maxRequests;
-        this.maxRequestsPerHost = maxRequestsPerHost;
-    }
+    private final BloqueioCartaoProperties properties;
 
     @Bean
     public okhttp3.OkHttpClient bloqueioCartaoOkHttpClient() {
+        var okhttp = properties.okhttp();
+        var pool = okhttp.connectionPool();
         Dispatcher dispatcher = new Dispatcher();
-        dispatcher.setMaxRequests(maxRequests);
-        dispatcher.setMaxRequestsPerHost(maxRequestsPerHost);
+        dispatcher.setMaxRequests(okhttp.dispatcher().maxRequests());
+        dispatcher.setMaxRequestsPerHost(okhttp.dispatcher().maxRequestsPerHost());
         return new okhttp3.OkHttpClient.Builder()
-                .writeTimeout(writeTimeout, TimeUnit.MILLISECONDS)
-                .retryOnConnectionFailure(retryOnConnectionFailure)
-                .connectionPool(new ConnectionPool(maxIdleConnections, keepAliveDurationSeconds, TimeUnit.SECONDS))
+                .writeTimeout(okhttp.writeTimeoutMillis(), TimeUnit.MILLISECONDS)
+                .retryOnConnectionFailure(okhttp.retryOnConnectionFailure())
+                .connectionPool(new ConnectionPool(pool.maxIdleConnections(), pool.keepAliveDurationSegundos(),
+                        TimeUnit.SECONDS))
                 .dispatcher(dispatcher)
                 .build();
     }
@@ -72,7 +55,7 @@ public class BloqueioCartaoFeignConfig {
     @Bean
     public RequestInterceptor bloqueioCartaoRequestInterceptor() {
         return template -> {
-            template.header("X-Api-Key", apiKey);
+            template.header("X-Api-Key", properties.apiKey());
             String correlationId = MDC.get(CorrelationId.MDC_KEY);
             if (correlationId != null) {
                 template.header(CorrelationId.HEADER, correlationId);

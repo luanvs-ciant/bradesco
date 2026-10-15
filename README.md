@@ -102,6 +102,13 @@ flowchart TB
 - Não há mapper manual. Campo sem origem correspondente quebra o build.
 - **DTO downstream de requisição**: só se cria um DTO downstream (com mapper MapStruct) quando os atributos da requisição ao serviço de domínio forem diferentes dos atributos do objeto de domínio ou do DTO de request do controller. Enquanto forem iguais, o objeto de domínio é enviado direto ao serviço de domínio, sem DTO nem mapper de requisição no gateway.
 
+### Padrão Lombok
+
+- **Dados são `record`**: DTOs, modelos de domínio e propriedades de configuração (`@ConfigurationProperties`) não usam Lombok.
+- **Lombok só onde record não serve**: `@RequiredArgsConstructor` para injeção por construtor em beans, `@Slf4j` para logger, `@Getter` em exceções/enums e `@NoArgsConstructor(access = PRIVATE)` em classes de constantes.
+- **Não usar** `@Data`, `@Setter`, `@SneakyThrows`, `@UtilityClass` nem `@Builder` sem necessidade real.
+- O `lombok.config` marca o código gerado com `@Generated`, que o JaCoCo ignora na cobertura.
+
 ### Pacotes
 
 ```text
@@ -121,7 +128,8 @@ src/main/java/br/com/empresa/bff/
 │   ├── client/                   BloqueioCartaoClient  (OpenFeign)
 │   ├── dto/                      BloqueioCartaoDownstreamResponse  (resposta do serviço de domínio)
 ├── config/
-│   └── feign/                  Transporte OkHttp, headers, retry e decodificação de erros
+│   └── feign/                  Transporte OkHttp, headers, retry, decodificação de erros e
+│                               propriedades tipadas (BloqueioCartaoProperties)
 ├── exception/                  Contrato de erro e GlobalExceptionHandler
 └── observability/              Correlation ID: filtro, header e chave de MDC
 ```
@@ -237,11 +245,11 @@ URLs, timeouts e credenciais vêm de configuração externa (`src/main/resources
 | `BLOQUEIO_SERVICE_API_KEY` | `bloqueio-cartao.api-key` | **obrigatória** | Valor do header `X-Api-Key`. |
 | `BLOQUEIO_SERVICE_CONNECT_TIMEOUT` | `...bloqueioCartao.connectTimeout` | `3000` | Timeout de conexão (ms). |
 | `BLOQUEIO_SERVICE_TIMEOUT` | `...bloqueioCartao.readTimeout` | `5000` | Timeout de leitura (ms). |
-| `ENV_HTTPCLIENT_CONFIG_DEFAULT_WRITE_TIMEOUT` | `okhttp-configuracao-geral.write-timeout-millis` | `5000` | Timeout de escrita do OkHttp (ms). |
-| `ENV_OKHTTPCLIENT_POOL_MAX_IDLE_CONNECTIONS` | `okhttp-connection-pool.max-idle-connections` | `20` | Conexões ociosas mantidas no pool. |
-| `ENV_OKHTTPCLIENT_POOL_KEEP_ALIVE_DURATION_SEGUNDOS` | `okhttp-connection-pool.keep-alive-duration-segundos` | `60` | Tempo de vida de uma conexão ociosa (s). |
-| `ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS` | `okhttp-dispatcher.max-requests` | `64` | Limite do dispatcher do OkHttp.¹ |
-| `ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS_PER_HOST` | `okhttp-dispatcher.max-requests-per-host` | `5` | Limite por host do dispatcher do OkHttp.¹ |
+| `ENV_HTTPCLIENT_CONFIG_DEFAULT_WRITE_TIMEOUT` | `bloqueio-cartao.okhttp.write-timeout-millis` | `5000` | Timeout de escrita do OkHttp (ms). |
+| `ENV_OKHTTPCLIENT_POOL_MAX_IDLE_CONNECTIONS` | `bloqueio-cartao.okhttp.connection-pool.max-idle-connections` | `20` | Conexões ociosas mantidas no pool. |
+| `ENV_OKHTTPCLIENT_POOL_KEEP_ALIVE_DURATION_SEGUNDOS` | `bloqueio-cartao.okhttp.connection-pool.keep-alive-duration-segundos` | `60` | Tempo de vida de uma conexão ociosa (s). |
+| `ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS` | `bloqueio-cartao.okhttp.dispatcher.max-requests` | `64` | Limite do dispatcher do OkHttp.¹ |
+| `ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS_PER_HOST` | `bloqueio-cartao.okhttp.dispatcher.max-requests-per-host` | `5` | Limite por host do dispatcher do OkHttp.¹ |
 | `LOG_LEVEL_ROOT` | `logging.level.root` | `INFO` | Nível de log geral. |
 | `LOG_LEVEL_BR_COM_EMPRESA` | `logging.level.br.com.empresa.bff` | `DEBUG` | Nível de log da aplicação. |
 | `LOG_LEVEL_OKHTTP3` | `logging.level.okhttp3` | `OFF` | Nível de log do OkHttp. |
@@ -262,8 +270,9 @@ O `BloqueioCartaoClient` é uma interface OpenFeign registrada com o nome `bloqu
 | Transporte | OkHttp com pool de conexões próprio (`feign-okhttp`). |
 | Requisição | `POST {BLOQUEIO_SERVICE_BASE_URL}{BLOQUEIO_SERVICE_PATH}` com corpo JSON. |
 | Headers enviados | `X-Api-Key` (sempre) e `X-Correlation-ID` (quando existe no MDC, ou seja, em toda requisição recebida pelo BFF). |
-| Retry | Desligado (`Retryer.NEVER_RETRY` e `retryOnConnectionFailure: false`): uma requisição ao BFF gera exatamente uma chamada ao downstream. |
+| Retry | Desligado (`Retryer.NEVER_RETRY` e `retry-on-connection-failure: false`): uma requisição ao BFF gera exatamente uma chamada ao downstream. |
 | Respostas de erro | O `ErrorDecoder` converte qualquer status ≥ 400 em `DownstreamIntegrationException`, preservando o status original. |
+| Propriedades | Centralizadas em `BloqueioCartaoProperties` (`@ConfigurationProperties("bloqueio-cartao")`, com `okhttp.connection-pool` e `okhttp.dispatcher` aninhados), registrada só no contexto deste client. |
 
 Contrato enviado ao serviço de domínio:
 

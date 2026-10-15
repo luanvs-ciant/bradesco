@@ -21,16 +21,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/operacoes/bloqueio-cartoes")
 public class BloqueioCartaoController {
 
     private final BloqueioCartaoApplicationService applicationService;
-
-    public BloqueioCartaoController(BloqueioCartaoApplicationService applicationService) {
-        this.applicationService = applicationService;
-    }
 
     @PostMapping
         @Operation(summary = "Solicitar bloqueio de portadores de um cartão",

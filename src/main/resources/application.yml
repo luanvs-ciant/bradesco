@@ -33,16 +33,13 @@ springdoc:
 
 bloqueio-cartao:
   path: "${BLOQUEIO_SERVICE_PATH:/api/v1/bloqueios-cartao}"
-  api-key: "${BLOQUEIO_SERVICE_API_KEY}"
-
-okhttp-configuracao-geral:
-  write-timeout-millis: ${ENV_HTTPCLIENT_CONFIG_DEFAULT_WRITE_TIMEOUT:5000}
-  retryOnConnectionFailure: false
-
-okhttp-connection-pool:
-  max-idle-connections: ${ENV_OKHTTPCLIENT_POOL_MAX_IDLE_CONNECTIONS:20}
-  keep-alive-duration-segundos: ${ENV_OKHTTPCLIENT_POOL_KEEP_ALIVE_DURATION_SEGUNDOS:60}
-
-okhttp-dispatcher:
-  max-requests: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS:64}
-  max-requests-per-host: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS_PER_HOST:5}
+  api-key: "${BLOQUEIO_SERVICE_API_KEY:}"
+  okhttp:
+    write-timeout-millis: ${ENV_HTTPCLIENT_CONFIG_DEFAULT_WRITE_TIMEOUT:5000}
+    retry-on-connection-failure: false
+    connection-pool:
+      max-idle-connections: ${ENV_OKHTTPCLIENT_POOL_MAX_IDLE_CONNECTIONS:20}
+      keep-alive-duration-segundos: ${ENV_OKHTTPCLIENT_POOL_KEEP_ALIVE_DURATION_SEGUNDOS:60}
+    dispatcher:
+      max-requests: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS:64}
+      max-requests-per-host: ${ENV_OKHTTPCLIENT_DISPATCHER_MAX_REQUESTS_PER_HOST:5}

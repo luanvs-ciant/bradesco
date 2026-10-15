@@ -2,8 +2,6 @@ package br.com.empresa.bff.exception;
 
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,11 +12,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import br.com.empresa.bff.observability.CorrelationId;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     public record ErrorResponse(
         @Schema(description = "Código do erro", example = "VALIDATION_ERROR") String code,
@@ -35,7 +33,7 @@ public class GlobalExceptionHandler {
             .stream()
             .map(e -> e.getField() + ": " + e.getDefaultMessage())
             .findFirst()
-            .orElse(ErrorCode.VALIDATION_ERROR.defaultMessage());
+            .orElse(ErrorCode.VALIDATION_ERROR.getDefaultMessage());
 
         return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, message);
     }
@@ -63,12 +61,12 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code) {
-        return error(status, code, code.defaultMessage());
+        return error(status, code, code.getDefaultMessage());
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code, String message) {
         String traceId = traceId();
-        logger.atLevel(status.is5xxServerError() ? org.slf4j.event.Level.ERROR : org.slf4j.event.Level.WARN)
+        log.atLevel(status.is5xxServerError() ? org.slf4j.event.Level.ERROR : org.slf4j.event.Level.WARN)
                 .addKeyValue("code", code.name()).addKeyValue("status", status.value())
                 .addKeyValue("traceId", traceId).log("Requisição rejeitada");
         return ResponseEntity.status(status).body(new ErrorResponse(code.name(), message, traceId));
