@@ -65,7 +65,7 @@ O Application Service depende só da interface `BloqueioCartaoGateway`, que fica
 
 ### Contratos por camada
 
-A API tem o próprio contrato e um mapper faz a conversão para o domínio. O objeto de domínio `BloqueioCartao` é o corpo enviado ao serviço de domínio, sem DTO nem mapper de request no gateway.
+A API tem o próprio contrato. Um mapper MapStruct só é criado quando a conversão for necessária, ou seja, quando os atributos de origem e destino forem diferentes. Hoje, o objeto de domínio `BloqueioCartao` é o corpo enviado ao serviço de domínio, sem DTO nem mapper de request no gateway.
 
 ```mermaid
 flowchart TB
