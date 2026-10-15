@@ -11,31 +11,25 @@ import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapper;
-import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapper;
 import feign.RetryableException;
 
 @Component
 public class BloqueioCartaoGatewayImpl implements BloqueioCartaoGateway {
 
     private final BloqueioCartaoClient client;
-    private final BloqueioCartaoGatewayMapper mapper;
     private final BloqueioCartaoDownstreamResponseMapper responseMapper;
 
     public BloqueioCartaoGatewayImpl(
             BloqueioCartaoClient client,
-            BloqueioCartaoGatewayMapper mapper,
             BloqueioCartaoDownstreamResponseMapper responseMapper) {
         this.client = client;
-        this.mapper = mapper;
         this.responseMapper = responseMapper;
     }
 
     @Override
     public ResultadoBloqueioCartao bloquear(BloqueioCartao bloqueio) {
-        var request = mapper.toDownstreamRequest(bloqueio);
-
         try {
-            var response = client.bloquear(request);
+            var response = client.bloquear(bloqueio);
 
             return responseMapper.toResult(response);
         } catch (DownstreamIntegrationException exception) {

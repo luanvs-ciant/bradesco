@@ -1,7 +1,6 @@
 package br.com.empresa.bff.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -29,7 +28,6 @@ import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapper;
 import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapperImpl;
-import br.com.empresa.bff.gateway.mapper.BloqueioCartaoGatewayMapperImpl;
 import feign.Request;
 import feign.RetryableException;
 
@@ -38,7 +36,6 @@ class BloqueioCartaoGatewayTest {
     private static final BloqueioCartao BLOQUEIO = new BloqueioCartao(
             "123456", TipoBloqueio.TEMPORARIO, null, List.of(new Portador("987654")));
 
-    private final BloqueioCartaoGatewayMapperImpl mapper = new BloqueioCartaoGatewayMapperImpl();
     private final BloqueioCartaoDownstreamResponseMapper responseMapper = new BloqueioCartaoDownstreamResponseMapperImpl();
     private BloqueioCartaoClient client;
     private BloqueioCartaoGatewayImpl gateway;
@@ -46,38 +43,23 @@ class BloqueioCartaoGatewayTest {
     @BeforeEach
     void setUp() {
         client = mock(BloqueioCartaoClient.class);
-        gateway = new BloqueioCartaoGatewayImpl(client, mapper, responseMapper);
+        gateway = new BloqueioCartaoGatewayImpl(client, responseMapper);
     }
 
     @Test
-    void mapsDomainWithNullTipoBloqueioAndPortadoresToNull() {
-        var bloqueio = new BloqueioCartao("123456", null, null, null);
-        var request = mapper.toDownstreamRequest(bloqueio);
-
-        assertNull(request.tipoBloqueio());
-        assertNull(request.portadores());
-    }
-
-    @Test
-    void returnsNullDownstreamRequestWhenBloqueioIsNull() {
-        assertNull(mapper.toDownstreamRequest(null));
-    }
-
-    @Test
-    void mapsDomainToDownstreamRequestAndMapsResponse() {
-        var request = mapper.toDownstreamRequest(BLOQUEIO);
-        when(client.bloquear(request)).thenReturn(new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING"));
+    void sendsDomainToClientAndMapsResponse() {
+        when(client.bloquear(BLOQUEIO)).thenReturn(new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING"));
 
         var result = gateway.bloquear(BLOQUEIO);
 
         assertEquals(new ResultadoBloqueioCartao("abc123", "PROCESSING"), result);
-        verify(client).bloquear(request);
+        verify(client).bloquear(BLOQUEIO);
     }
 
     @Test
     void propagatesDownstreamHttpErrors() {
         var failure = new DownstreamIntegrationException(HttpStatus.INTERNAL_SERVER_ERROR, "servico indisponivel");
-        when(client.bloquear(mapper.toDownstreamRequest(BLOQUEIO))).thenThrow(failure);
+        when(client.bloquear(BLOQUEIO)).thenThrow(failure);
 
         var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(BLOQUEIO));
 
@@ -104,7 +86,7 @@ class BloqueioCartaoGatewayTest {
     }
 
     private DownstreamIntegrationException assertTranslated(RuntimeException failure, HttpStatus expectedStatus) {
-        when(client.bloquear(mapper.toDownstreamRequest(BLOQUEIO))).thenThrow(failure);
+        when(client.bloquear(BLOQUEIO)).thenThrow(failure);
 
         var exception = assertThrows(DownstreamIntegrationException.class, () -> gateway.bloquear(BLOQUEIO));
 
