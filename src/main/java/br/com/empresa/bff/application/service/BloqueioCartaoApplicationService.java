@@ -26,7 +26,7 @@ public class BloqueioCartaoApplicationService {
 
     public BloqueioCartaoResponse bloquear(BloqueioCartaoRequest request) {
         var domain = mapper.toDomain(request);
-        var result = gateway.bloquear(domain);
-        return responseMapper.toResponse(result);
+        var response = gateway.bloquear(domain);
+        return responseMapper.toResponse(response);
     }
 }

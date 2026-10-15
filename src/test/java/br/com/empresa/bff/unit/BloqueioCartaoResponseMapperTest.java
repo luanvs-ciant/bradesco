@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.api.Test;
 
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
-import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.mapper.BloqueioCartaoResponseMapperImpl;
 
 class BloqueioCartaoResponseMapperTest {
@@ -15,15 +15,15 @@ class BloqueioCartaoResponseMapperTest {
 
     @Test
     void mapsProtocoloIdAndStatus() {
-        var resultado = new ResultadoBloqueioCartao("abc123", "PROCESSING");
+        var downstreamResponse = new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING");
 
-        var response = mapper.toResponse(resultado);
+        var response = mapper.toResponse(downstreamResponse);
 
         assertEquals(new BloqueioCartaoResponse("abc123", "PROCESSING"), response);
     }
 
     @Test
-    void returnsNullWhenResultadoIsNull() {
+    void returnsNullWhenResponseIsNull() {
         assertNull(mapper.toResponse(null));
     }
 }

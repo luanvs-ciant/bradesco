@@ -20,14 +20,11 @@ import org.springframework.http.HttpStatus;
 
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
-import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.BloqueioCartaoGatewayImpl;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
-import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapper;
-import br.com.empresa.bff.gateway.mapper.BloqueioCartaoDownstreamResponseMapperImpl;
 import feign.Request;
 import feign.RetryableException;
 
@@ -36,23 +33,23 @@ class BloqueioCartaoGatewayTest {
     private static final BloqueioCartao BLOQUEIO = new BloqueioCartao(
             "123456", TipoBloqueio.TEMPORARIO, null, List.of(new Portador("987654")));
 
-    private final BloqueioCartaoDownstreamResponseMapper responseMapper = new BloqueioCartaoDownstreamResponseMapperImpl();
     private BloqueioCartaoClient client;
     private BloqueioCartaoGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
         client = mock(BloqueioCartaoClient.class);
-        gateway = new BloqueioCartaoGatewayImpl(client, responseMapper);
+        gateway = new BloqueioCartaoGatewayImpl(client);
     }
 
     @Test
-    void sendsDomainToClientAndMapsResponse() {
-        when(client.bloquear(BLOQUEIO)).thenReturn(new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING"));
+    void sendsDomainToClientAndReturnsDownstreamResponse() {
+        var downstreamResponse = new BloqueioCartaoDownstreamResponse("abc123", "PROCESSING");
+        when(client.bloquear(BLOQUEIO)).thenReturn(downstreamResponse);
 
         var result = gateway.bloquear(BLOQUEIO);
 
-        assertEquals(new ResultadoBloqueioCartao("abc123", "PROCESSING"), result);
+        assertSame(downstreamResponse, result);
         verify(client).bloquear(BLOQUEIO);
     }
 

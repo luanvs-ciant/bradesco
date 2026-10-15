@@ -20,8 +20,8 @@ import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
 import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
-import br.com.empresa.bff.domain.model.ResultadoBloqueioCartao;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.mapper.BloqueioCartaoMapper;
 import br.com.empresa.bff.mapper.BloqueioCartaoResponseMapper;
 
@@ -49,18 +49,19 @@ class BloqueioCartaoApplicationServiceTest {
         BloqueioCartaoRequest request = request();
         BloqueioCartao bloqueio = new BloqueioCartao(
                 "card-123", TipoBloqueio.DEFINITIVO, null, List.of(new Portador("holder-123")));
-        ResultadoBloqueioCartao resultado = new ResultadoBloqueioCartao("protocol-123", "PROCESSING");
+        BloqueioCartaoDownstreamResponse downstreamResponse =
+                new BloqueioCartaoDownstreamResponse("protocol-123", "PROCESSING");
         BloqueioCartaoResponse esperado = new BloqueioCartaoResponse("protocol-123", "PROCESSING");
         when(mapper.toDomain(request)).thenReturn(bloqueio);
-        when(gateway.bloquear(bloqueio)).thenReturn(resultado);
-        when(responseMapper.toResponse(resultado)).thenReturn(esperado);
+        when(gateway.bloquear(bloqueio)).thenReturn(downstreamResponse);
+        when(responseMapper.toResponse(downstreamResponse)).thenReturn(esperado);
 
         BloqueioCartaoResponse response = applicationService.bloquear(request);
 
         assertEquals(esperado, response);
         verify(mapper).toDomain(request);
         verify(gateway).bloquear(bloqueio);
-        verify(responseMapper).toResponse(resultado);
+        verify(responseMapper).toResponse(downstreamResponse);
     }
 
     private BloqueioCartaoRequest request() {
