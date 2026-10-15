@@ -1,0 +1,9 @@
+{
+  "cartaoId": "123456",
+  "tipoBloqueio": "DEFINITIVO",
+  "motivo": "SOLICITACAO_CLIENTE",
+  "portadores": [
+    {"portadorId": "987654"},
+    {"portadorId": "456789"}
+  ]
+}

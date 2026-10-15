@@ -34,6 +34,8 @@ import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 
+import br.com.empresa.bff.support.JsonFixtures;
+
 /**
  * BFF real (HTTP -> controller -> service -> gateway -> Feign/OkHttp) contra o downstream simulado pelo WireMock.
  */
@@ -101,17 +103,7 @@ class BloqueioCartaoIntegrationTest {
                 .withHeader("X-Api-Key", equalTo(API_KEY))
                 .withHeader(CORRELATION_ID_HEADER, equalTo(CORRELATION_ID))
                 .withHeader(HttpHeaders.CONTENT_TYPE, equalTo(MediaType.APPLICATION_JSON_VALUE))
-                .withRequestBody(equalToJson("""
-                        {
-                          "cartaoId": "123456",
-                          "tipoBloqueio": "DEFINITIVO",
-                          "motivo": "SOLICITACAO_CLIENTE",
-                          "portadores": [
-                            {"portadorId": "987654"},
-                            {"portadorId": "456789"}
-                          ]
-                        }
-                        """)));
+                .withRequestBody(equalToJson(JsonFixtures.json("bloqueio-cartao/request-with-reason.json"))));
     }
 
     @Test
@@ -209,26 +201,15 @@ class BloqueioCartaoIntegrationTest {
         return aResponse()
                 .withStatus(HttpStatus.ACCEPTED.value())
                 .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .withBody("""
-                        {"protocoloId":"protocol-123","status":"PROCESSING"}
-                        """);
+                .withBody(JsonFixtures.json("bloqueio-cartao/response-processing.json"));
     }
 
     private HttpResponse<String> postBlockRequest(String correlationId) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create("http://" + LOOPBACK + ":" + port + REQUEST_PATH))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .POST(HttpRequest.BodyPublishers.ofString("""
-                        {
-                          "cartaoId": "123456",
-                          "tipoBloqueio": "DEFINITIVO",
-                          "motivo": "SOLICITACAO_CLIENTE",
-                          "portadores": [
-                            {"portadorId": "987654"},
-                            {"portadorId": "456789"}
-                          ]
-                        }
-                        """));
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        JsonFixtures.json("bloqueio-cartao/request-with-reason.json")));
         if (correlationId != null) {
             request.header(CORRELATION_ID_HEADER, correlationId);
         }

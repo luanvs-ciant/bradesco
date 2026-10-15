@@ -7,13 +7,12 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
-import br.com.empresa.bff.controller.dto.request.PortadorRequest;
 import br.com.empresa.bff.domain.model.BloqueioCartao;
 import br.com.empresa.bff.domain.model.Portador;
 import br.com.empresa.bff.domain.model.TipoBloqueio;
 import br.com.empresa.bff.mapper.BloqueioCartaoMapperImpl;
+import br.com.empresa.bff.support.JsonFixtures;
 
 class BloqueioCartaoMapperTest {
 
@@ -36,12 +35,7 @@ class BloqueioCartaoMapperTest {
 
     @Test
     void mapsRequestToDomain() {
-        var request = new BloqueioCartaoRequest(
-                "123456",
-                TipoBloqueioDto.DEFINITIVO,
-                "SOLICITACAO_CLIENTE",
-                List.of(new PortadorRequest("987654"), new PortadorRequest("456789"))
-        );
+        var request = JsonFixtures.read("bloqueio-cartao/request-with-reason.json", BloqueioCartaoRequest.class);
 
         var result = mapper.toDomain(request);
 
@@ -55,12 +49,7 @@ class BloqueioCartaoMapperTest {
 
     @Test
     void mapsRequestWithOptionalMotivoOmitted() {
-        var request = new BloqueioCartaoRequest(
-                "123456",
-                TipoBloqueioDto.TEMPORARIO,
-                null,
-                List.of(new PortadorRequest("987654"))
-        );
+        var request = JsonFixtures.read("bloqueio-cartao/request-without-reason.json", BloqueioCartaoRequest.class);
 
         var result = mapper.toDomain(request);
 
