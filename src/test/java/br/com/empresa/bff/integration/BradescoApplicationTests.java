@@ -79,7 +79,6 @@ class BradescoApplicationTests {
 
 	@Test
 	void shouldKeepFeignConfigurationScopedToItsClient() {
-		// BloqueioCartaoFeignConfig nao pode ser @Configuration: seus beans virariam padrao de todo client Feign.
 		for (Class<?> type : List.of(Client.class, ErrorDecoder.class, RequestInterceptor.class, Retryer.class,
 				okhttp3.OkHttpClient.class)) {
 			assertThat(applicationContext.getBeansOfType(type)).as(type.getName()).isEmpty();
@@ -88,7 +87,6 @@ class BradescoApplicationTests {
 
 	@Test
 	void shouldNotStartWithoutDownstreamApiKey() {
-		// A API key e um segredo: nao pode ter valor padrao no application.yml.
 		var runner = applicationYmlWithoutEnvironment()
 				.withBean(PropertySourcesPlaceholderConfigurer.class, PropertySourcesPlaceholderConfigurer::new)
 				.withUserConfiguration(BloqueioCartaoFeignConfig.class);
@@ -101,7 +99,6 @@ class BradescoApplicationTests {
 
 	@Test
 	void shouldApplyFeignClientDefaultsFromApplicationYml() {
-		// Chaves do Feign com erro de digitacao sao ignoradas sem erro e o Feign usa os padroes dele.
 		applicationYmlWithoutEnvironment().run(context -> {
 			var clients = Binder.get(context.getEnvironment())
 					.bind("spring.cloud.openfeign.client", FeignClientProperties.class)
@@ -115,7 +112,6 @@ class BradescoApplicationTests {
 		});
 	}
 
-	// Carrega somente o application.yml real, sem variaveis de ambiente nem propriedades de sistema.
 	private static ApplicationContextRunner applicationYmlWithoutEnvironment() {
 		return new ApplicationContextRunner()
 				.withInitializer(context -> {

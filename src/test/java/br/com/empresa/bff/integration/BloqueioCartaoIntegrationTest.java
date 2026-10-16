@@ -36,9 +36,6 @@ import com.github.tomakehurst.wiremock.http.Fault;
 
 import br.com.empresa.bff.support.JsonFixtures;
 
-/**
- * BFF real (HTTP -> controller -> service -> gateway -> Feign/OkHttp) contra o downstream simulado pelo WireMock.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class BloqueioCartaoIntegrationTest {
 
@@ -48,9 +45,7 @@ class BloqueioCartaoIntegrationTest {
     private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
     private static final String CORRELATION_ID = "integration-test-123";
     private static final String DOWNSTREAM_DETAILS = "downstream internal details";
-    // IP fixo para nao depender de como a maquina resolve "localhost" (IPv4/IPv6, VPN, proxy).
     private static final String LOOPBACK = "127.0.0.1";
-    // Folga para o aquecimento do OkHttp na primeira chamada da JVM, que pode passar de 1s.
     private static final int READ_TIMEOUT_MILLIS = 2000;
     private static final int WRITE_TIMEOUT_MILLIS = 3210;
 
@@ -74,7 +69,7 @@ class BloqueioCartaoIntegrationTest {
         registry.add("spring.cloud.openfeign.client.config.bloqueioCartao.connectTimeout", () -> 1000);
         registry.add("bloqueio-cartao.path", () -> API_PATH);
         registry.add("bloqueio-cartao.api-key", () -> API_KEY);
-        registry.add("okhttp-configuracao-geral.write-timeout-millis", () -> WRITE_TIMEOUT_MILLIS);
+        registry.add("bloqueio-cartao.okhttp.write-timeout-millis", () -> WRITE_TIMEOUT_MILLIS);
     }
 
     @AfterAll
@@ -126,8 +121,6 @@ class BloqueioCartaoIntegrationTest {
 
         assertThat(postBlockRequest(CORRELATION_ID).statusCode()).isEqualTo(HttpStatus.ACCEPTED.value());
 
-        // Se o Feign nao usar o Client OkHttp configurado, a chamada ainda funciona, mas este pool fica vazio
-        // e as configuracoes okhttp-* (pool, write timeout, retry de transporte) deixam de valer.
         assertThat(transport.connectionPool().connectionCount()).isPositive();
         assertThat(transport.writeTimeoutMillis()).isEqualTo(WRITE_TIMEOUT_MILLIS);
         assertThat(transport.retryOnConnectionFailure()).isFalse();
@@ -180,11 +173,9 @@ class BloqueioCartaoIntegrationTest {
                 .contains("\"traceId\":\"" + CORRELATION_ID + "\"")
                 .doesNotContain(DOWNSTREAM_DETAILS);
         awaitRequestJournal();
-        // Retryer.NEVER_RETRY: exatamente uma chamada ao downstream, mesmo em falha.
         wireMock.verify(1, postRequestedFor(urlEqualTo(API_PATH)));
     }
 
-    // O WireMock pode registrar a requisicao depois de o cliente ja ter desistido (timeout/fault).
     private void awaitRequestJournal() throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5000;
         while (wireMock.findAll(postRequestedFor(urlEqualTo(API_PATH))).isEmpty()

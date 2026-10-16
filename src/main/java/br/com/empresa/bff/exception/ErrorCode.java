@@ -1,5 +1,10 @@
 package br.com.empresa.bff.exception;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum ErrorCode {
 
     VALIDATION_ERROR("Erro de validação"),
@@ -9,12 +14,4 @@ public enum ErrorCode {
     INTERNAL_ERROR("Erro ao processar requisição");
 
     private final String defaultMessage;
-
-    ErrorCode(String defaultMessage) {
-        this.defaultMessage = defaultMessage;
-    }
-
-    public String defaultMessage() {
-        return defaultMessage;
-    }
 }

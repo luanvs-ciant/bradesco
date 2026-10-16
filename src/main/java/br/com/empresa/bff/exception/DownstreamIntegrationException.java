@@ -2,6 +2,9 @@ package br.com.empresa.bff.exception;
 
 import org.springframework.http.HttpStatusCode;
 
+import lombok.Getter;
+
+@Getter
 public class DownstreamIntegrationException extends RuntimeException {
 
     private final HttpStatusCode status;
@@ -13,9 +16,5 @@ public class DownstreamIntegrationException extends RuntimeException {
     public DownstreamIntegrationException(HttpStatusCode status, String message, Throwable cause) {
         super(message, cause);
         this.status = status;
-    }
-
-    public HttpStatusCode getStatus() {
-        return status;
     }
 }

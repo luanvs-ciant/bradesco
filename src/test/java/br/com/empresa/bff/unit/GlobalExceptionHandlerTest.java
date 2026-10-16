@@ -76,7 +76,7 @@ class GlobalExceptionHandlerTest {
                 new MockHttpInputMessage(new byte[0]));
         var response = handler.handleUnreadableMessage(exception);
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals(ErrorCode.VALIDATION_ERROR.defaultMessage(), response.getBody().message());
+        assertEquals(ErrorCode.VALIDATION_ERROR.getDefaultMessage(), response.getBody().message());
         assertEquals(TEST_TRACE_ID, response.getBody().traceId());
     }
 
@@ -121,7 +121,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(ErrorCode.INTERNAL_ERROR.name(), response.getBody().code());
-        assertEquals(ErrorCode.INTERNAL_ERROR.defaultMessage(), response.getBody().message());
+        assertEquals(ErrorCode.INTERNAL_ERROR.getDefaultMessage(), response.getBody().message());
     }
 
     @Test
