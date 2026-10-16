@@ -42,8 +42,8 @@ flowchart TB
         direction TB
         filter["<b>CorrelationIdFilter</b><br/>observability"]
         controller["<b>BloqueioCartaoController</b><br/>controller"]
-        service["<b>BloqueioCartaoApplicationService</b><br/>application/service"]
-        port[["<b>BloqueioCartaoGateway</b><br/>domain/gateway · interface"]]
+        service["<b>BloqueioCartaoService</b><br/>service"]
+        port[["<b>BloqueioCartaoGateway</b><br/>gateway · interface"]]
         gateway["<b>BloqueioCartaoGatewayImpl</b><br/>gateway"]
         client["<b>BloqueioCartaoClient</b><br/>gateway/client · OpenFeign + OkHttp"]
         handler["<b>GlobalExceptionHandler</b><br/>exception"]
@@ -61,26 +61,26 @@ flowchart TB
     handler -. "{code, message, traceId}" .-> consumer
 ```
 
-O Application Service depende só da interface `BloqueioCartaoGateway`, que fica no domínio. A implementação, o client Feign e a configuração HTTP ficam do lado de fora, no pacote `gateway`. Assim, nenhuma classe acima do gateway conhece HTTP, Feign ou o contrato do serviço de domínio.
+O `BloqueioCartaoService` depende só da interface `BloqueioCartaoGateway`, que fica no pacote `gateway`. A implementação, o client Feign e a configuração HTTP também ficam nesse pacote e em `config/feign`. O service conhece os DTOs do serviço de domínio (por meio do mapper), mas não conhece HTTP nem Feign. Só o gateway fala com o serviço de domínio.
 
 ### Contratos por camada
 
-A API tem o próprio contrato. Um mapper MapStruct só é criado quando a conversão for necessária, ou seja, quando os atributos de origem e destino forem diferentes. Hoje, o objeto de domínio `BloqueioCartao` é o corpo enviado ao serviço de domínio, sem DTO nem mapper de request no gateway.
+A API e o serviço de domínio têm contratos separados. O `BloqueioCartaoMapper` (MapStruct) converte entre eles nos dois sentidos. Não existe mais um modelo de domínio intermediário: o request da API é convertido direto para o DTO do serviço de domínio.
 
 ```mermaid
 flowchart TB
     subgraph ida["Requisição"]
         direction LR
         req["<b>BloqueioCartaoRequest</b><br/>API"]
-        model["<b>BloqueioCartao</b><br/>domínio · corpo enviado ao serviço de domínio"]
-        req -- "BloqueioCartaoMapper" --> model
+        dreq["<b>BloqueioCartaoDownstreamRequest</b><br/>serviço de domínio"]
+        req -- "BloqueioCartaoMapper" --> dreq
     end
 
     subgraph volta["Resposta"]
         direction LR
-        res["<b>BloqueioCartaoResponse</b><br/>API"]
         dres["<b>BloqueioCartaoDownstreamResponse</b><br/>serviço de domínio"]
-        dres -- "BloqueioCartaoResponseMapper" --> res
+        res["<b>BloqueioCartaoResponse</b><br/>API"]
+        dres -- "BloqueioCartaoMapper" --> res
     end
 
     ida ~~~ volta
@@ -89,22 +89,23 @@ flowchart TB
 | Camada | Pacote | Requisição | Resposta |
 |---|---|---|---|
 | API | `controller/dto` | `BloqueioCartaoRequest` | `BloqueioCartaoResponse` |
-| Domínio | `domain/model` | `BloqueioCartao` | — |
-| Serviço de domínio | `gateway/dto` | o próprio `BloqueioCartao` | `BloqueioCartaoDownstreamResponse` |
+| Serviço de domínio | `gateway/dto` | `BloqueioCartaoDownstreamRequest` | `BloqueioCartaoDownstreamResponse` |
 
-**DTO da API ≠ objeto de domínio.** Uma mudança no contrato da API fica restrita ao `controller`. Na requisição, o domínio é serializado direto para o serviço de domínio; o campo `Portador.id` usa `@JsonProperty("portadorId")` para sair com o nome que o serviço espera.
+O enum `TipoBloqueio` (pacote `model`) é compartilhado pelo request da API e pelo request do serviço de domínio. Trocar um valor do enum altera os dois contratos ao mesmo tempo.
 
-**Atenção:** uma mudança no contrato de requisição do serviço de domínio (renomear um campo, por exemplo) chega ao modelo de domínio e ao `BloqueioCartaoMapper`. Na resposta, o contrato continua isolado em `BloqueioCartaoDownstreamResponse`. Se os atributos da requisição ao serviço de domínio passarem a diferir do domínio ou do DTO de request do controller, crie um DTO downstream e um mapper MapStruct (veja [Padrão de mapeamento](#padrão-de-mapeamento)).
+**Contrato da API ≠ contrato do serviço de domínio.** Uma mudança no contrato da API fica restrita a `controller/dto`. Uma mudança no contrato do serviço de domínio fica restrita a `gateway/dto`. Nenhum dos dois atinge o outro, porque o `BloqueioCartaoMapper` é o único ponto de conversão entre eles.
+
+**Atenção:** com `unmappedTargetPolicy = ReportingPolicy.ERROR`, se um campo novo for adicionado ao DTO do serviço de domínio e não tiver origem no request da API, o build falha. Isso é intencional: o erro aparece na compilação, não em produção.
 
 ### Padrão de mapeamento
 
 - Todas as conversões entre contratos usam MapStruct, com `@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)`.
 - Não há mapper manual. Campo sem origem correspondente quebra o build.
-- **DTO downstream de requisição**: só se cria um DTO downstream (com mapper MapStruct) quando os atributos da requisição ao serviço de domínio forem diferentes dos atributos do objeto de domínio ou do DTO de request do controller. Enquanto forem iguais, o objeto de domínio é enviado direto ao serviço de domínio, sem DTO nem mapper de requisição no gateway.
+- **DTO downstream de requisição**: o gateway recebe sempre um `BloqueioCartaoDownstreamRequest`, mesmo quando os campos são iguais aos do request da API. Essa separação existe para que uma mudança no contrato do serviço de domínio não toque na API. Se o serviço de domínio passar a exigir outro formato, ajuste só o DTO e o mapper.
 
 ### Padrão Lombok
 
-- **Dados são `record`**: DTOs, modelos de domínio e propriedades de configuração (`@ConfigurationProperties`) não usam Lombok.
+- **Dados são `record`**: DTOs e propriedades de configuração (`@ConfigurationProperties`) não usam Lombok.
 - **Lombok só onde record não serve**: `@RequiredArgsConstructor` para injeção por construtor em beans, `@Slf4j` para logger, `@Getter` em exceções/enums e `@NoArgsConstructor(access = PRIVATE)` em classes de constantes.
 - **Não usar** `@Data`, `@Setter`, `@SneakyThrows`, `@UtilityClass` nem `@Builder` sem necessidade real.
 - O `lombok.config` marca o código gerado com `@Generated`, que o JaCoCo ignora na cobertura.
@@ -113,38 +114,39 @@ flowchart TB
 
 ```text
 src/main/java/br/com/empresa/bff/
+├── Application.java
 ├── controller/                 Endpoint REST
-│   └── dto/                    Contrato da API
+│   ├── BloqueioCartaoApi         Interface com o contrato OpenAPI (anotações Swagger)
+│   ├── BloqueioCartaoController  Implementa a interface; só mapeia a rota
+│   └── dto/
 │       ├── request/              BloqueioCartaoRequest, PortadorRequest
 │       └── response/             BloqueioCartaoResponse
-├── application/
-│   └── service/                BloqueioCartaoApplicationService
-├── mapper/                     BloqueioCartaoMapper  (API → domínio, MapStruct)
-│                               BloqueioCartaoResponseMapper  (domínio → API, MapStruct)
-├── domain/
-│   ├── model/                  BloqueioCartao, Portador, TipoBloqueio
-│   └── gateway/                BloqueioCartaoGateway  (interface da fronteira)
-├── gateway/                    BloqueioCartaoGatewayImpl
-│   ├── client/                   BloqueioCartaoClient  (OpenFeign)
-│   ├── dto/                      BloqueioCartaoDownstreamResponse  (resposta do serviço de domínio)
+├── service/                    BloqueioCartaoService  (orquestra: mapeia, chama o gateway, mapeia a resposta)
+│                               BloqueioCartaoMapper   (MapStruct: API ↔ serviço de domínio)
+├── model/                      TipoBloqueio  (enum compartilhado pelo request da API e do serviço de domínio)
+├── gateway/                    BloqueioCartaoGateway      (interface, porta de saída)
+│   ├── BloqueioCartaoGatewayImpl  (traduz falhas do Feign em DownstreamIntegrationException)
+│   ├── client/                   BloqueioCartaoClient   (OpenFeign)
+│   └── dto/                      BloqueioCartaoDownstreamRequest, BloqueioCartaoDownstreamResponse
 ├── config/
-│   └── feign/                  Transporte OkHttp, headers, retry, decodificação de erros e
-│                               propriedades tipadas (BloqueioCartaoProperties)
-├── exception/                  Contrato de erro e GlobalExceptionHandler
+│   ├── OpenApiConfig             Componentes compartilhados do OpenAPI (respostas de erro)
+│   └── feign/                    Transporte OkHttp, headers, retry, decodificação de erros e
+│                                 propriedades tipadas (BloqueioCartaoProperties)
+├── exception/                  ErrorCode, DownstreamIntegrationException, GlobalExceptionHandler
 └── observability/              Correlation ID: filtro, header e chave de MDC
 ```
 
-Os pacotes `security` e `validation` fazem parte da estrutura padrão do BFF e estão reservados para evolução; hoje não contêm implementação. O pacote `authorization` da estrutura padrão foi omitido porque a autorização está fora do escopo deste scaffold.
+A estrutura não tem pacotes vazios. Os pacotes `security` e `validation`, que existiam como placeholders, foram removidos. Se a autenticação do consumidor for necessária, ela entra em um pacote novo, junto com os códigos de erro e as respostas OpenAPI correspondentes.
 
 ## Responsabilidades
 
 | Componente | Responsável por | Não deve |
 |---|---|---|
-| `BloqueioCartaoController` | Expor `POST /operacoes/bloqueio-cartoes`, validar o payload (Bean Validation), documentar o contrato OpenAPI e responder `202`. | Conter regra de negócio ou chamar o client. |
-| `BloqueioCartaoApplicationService` | Coordenar a jornada: converter para o domínio, chamar o gateway e delegar a montagem da resposta ao `BloqueioCartaoResponseMapper`. | Conhecer detalhes HTTP. |
-| `BloqueioCartaoMapper` | Converter `BloqueioCartaoRequest` para `BloqueioCartao` (MapStruct). | — |
-| `BloqueioCartaoResponseMapper` | Converter `BloqueioCartaoDownstreamResponse` para `BloqueioCartaoResponse` (MapStruct). | — |
-| `BloqueioCartaoGatewayImpl` | Chamar o client com o objeto de domínio e traduzir falhas de integração. | Expor detalhes do downstream ao consumidor. |
+| `BloqueioCartaoApi` | Declarar o contrato OpenAPI do endpoint (anotações Swagger e validação `@Valid`). | Conter lógica. |
+| `BloqueioCartaoController` | Implementar a `BloqueioCartaoApi`, mapear a rota `POST /operacoes/bloqueio-cartoes` e responder `202`. | Conter regra de negócio ou chamar o client. |
+| `BloqueioCartaoService` | Coordenar a jornada: mapear o request para o serviço de domínio, chamar o gateway e mapear a resposta. | Conhecer detalhes HTTP. |
+| `BloqueioCartaoMapper` | Converter `BloqueioCartaoRequest` para `BloqueioCartaoDownstreamRequest` e `BloqueioCartaoDownstreamResponse` para `BloqueioCartaoResponse` (MapStruct). | — |
+| `BloqueioCartaoGatewayImpl` | Chamar o client com o DTO do serviço de domínio e traduzir falhas de integração do Feign. Só trata `RetryableException` e `DecodeException`. | Capturar erros que não são de integração (bugs e falhas de serialização do próprio BFF). |
 | `BloqueioCartaoClient` | Comunicação HTTP com o serviço de domínio. | Conter regra de negócio. |
 | `BloqueioCartaoFeignConfig` | Transporte OkHttp, `X-Api-Key`, propagação do correlation ID, desligar retry e decodificar respostas de erro. | — |
 | `GlobalExceptionHandler` | Converter exceções no contrato de erro `{code, message, traceId}`. | Retornar stack trace ou dados internos. |
@@ -153,11 +155,11 @@ Os pacotes `security` e `validation` fazem parte da estrutura padrão do BFF e e
 ## Fluxo do endpoint
 
 1. O `CorrelationIdFilter` obtém ou gera o `X-Correlation-ID` e o grava no MDC.
-2. O `BloqueioCartaoController` desserializa e valida o `BloqueioCartaoRequest`. Payload inválido → `400`.
-3. O `BloqueioCartaoApplicationService` usa o `BloqueioCartaoMapper` para criar o objeto de domínio `BloqueioCartao`.
-4. O `BloqueioCartaoGatewayImpl` chama o `BloqueioCartaoClient` com o objeto de domínio `BloqueioCartao`.
+2. O `BloqueioCartaoController` recebe o `BloqueioCartaoRequest`. A validação (`@Valid`) é feita antes do método, pela interface. Payload inválido → `400`.
+3. O `BloqueioCartaoService` usa o `BloqueioCartaoMapper` para converter o request em `BloqueioCartaoDownstreamRequest`.
+4. O `BloqueioCartaoGatewayImpl` chama o `BloqueioCartaoClient` com o `BloqueioCartaoDownstreamRequest`.
 5. O client envia `POST {url}{path}` ao serviço de domínio com `X-Api-Key` e `X-Correlation-ID`.
-6. A resposta do downstream (`BloqueioCartaoDownstreamResponse`) é convertida para `BloqueioCartaoResponse` pelo `BloqueioCartaoResponseMapper`.
+6. A resposta do downstream (`BloqueioCartaoDownstreamResponse`) é convertida para `BloqueioCartaoResponse` pelo mesmo `BloqueioCartaoMapper`.
 7. O BFF responde `202 Accepted` com o protocolo e o status da operação.
 8. Em qualquer falha, o `GlobalExceptionHandler` responde com o contrato de erro padronizado (veja [Timeouts e tratamento de erros](#timeouts-e-tratamento-de-erros)).
 
@@ -222,7 +224,7 @@ Os códigos possíveis estão em [Timeouts e tratamento de erros](#timeouts-e-tr
 
 **BFF → serviço de domínio.** Toda chamada ao downstream leva o header `X-Api-Key`, preenchido pelo próprio BFF a partir de `bloqueio-cartao.api-key` (variável `BLOQUEIO_SERVICE_API_KEY`). A chave é configurada somente no servidor: o consumidor **não** deve enviá-la.
 
-**Consumidor → BFF.** Fora do escopo deste scaffold: o BFF não autentica nem autoriza o consumidor, e o endpoint não retorna `401` nem `403`. Um BFF derivado que precise de autorização deve aplicá-la no Application Service, antes da chamada ao Gateway, como prevê o padrão de BFF, e incluir os códigos de erro e as respostas correspondentes no contrato e no OpenAPI.
+**Consumidor → BFF.** Fora do escopo deste scaffold: o BFF não autentica nem autoriza o consumidor, e o endpoint não retorna `401` nem `403`. Um BFF derivado que precise de autorização deve aplicá-la no `BloqueioCartaoService`, antes da chamada ao gateway, como prevê o padrão de BFF, e incluir os códigos de erro e as respostas correspondentes no contrato e no OpenAPI.
 
 ## Pré-requisitos
 
@@ -271,10 +273,11 @@ O `BloqueioCartaoClient` é uma interface OpenFeign registrada com o nome `bloqu
 | Requisição | `POST {BLOQUEIO_SERVICE_BASE_URL}{BLOQUEIO_SERVICE_PATH}` com corpo JSON. |
 | Headers enviados | `X-Api-Key` (sempre) e `X-Correlation-ID` (quando existe no MDC, ou seja, em toda requisição recebida pelo BFF). |
 | Retry | Desligado (`Retryer.NEVER_RETRY` e `retry-on-connection-failure: false`): uma requisição ao BFF gera exatamente uma chamada ao downstream. |
-| Respostas de erro | O `ErrorDecoder` converte qualquer status ≥ 400 em `DownstreamIntegrationException`, preservando o status original. |
+| Respostas de erro | O `ErrorDecoder` converte qualquer status ≥ 400 em `DownstreamIntegrationException`, com o status original e o corpo da resposta como mensagem. |
+| Traduções de falha | O `BloqueioCartaoGatewayImpl` converte `RetryableException` (timeout → `504`, outras → `503`) e `DecodeException` (→ `502`). Outras exceções não são capturadas e viram `500`. `EncodeException` também não é capturada: significa erro na serialização do request, não no downstream. |
 | Propriedades | Centralizadas em `BloqueioCartaoProperties` (`@ConfigurationProperties("bloqueio-cartao")`, com `okhttp.connection-pool` e `okhttp.dispatcher` aninhados), registrada só no contexto deste client. |
 
-Contrato enviado ao serviço de domínio:
+Contrato enviado ao serviço de domínio (`BloqueioCartaoDownstreamRequest`):
 
 ```json
 {
@@ -403,7 +406,7 @@ Os testes seguem os níveis do padrão BFF e **não dependem de nenhum serviço 
 
 | Nível | Pacote (`src/test/java/br/com/empresa/bff`) | Ferramentas | O que valida |
 |---|---|---|---|
-| Unitário | `unit` | JUnit 5, Mockito | Application Service, mappers, gateway (tradução de falhas), configuração do Feign, exception handler. |
+| Unitário | `unit` | JUnit 5, Mockito | `BloqueioCartaoService`, `BloqueioCartaoMapper`, gateway (tradução de falhas), configuração do Feign, exception handler. |
 | Componente | `component` | `@WebMvcTest`, MockMvc | Controller: status HTTP, validação, serialização/desserialização, contrato de erro, correlation ID. |
 | Integração | `integration` | `@SpringBootTest` + WireMock | BFF real → HTTP client → downstream simulado: método, rota, headers, payload, `202`, erros HTTP, timeout, falha de conexão, ausência de retry e contrato OpenAPI. |
 
@@ -456,7 +459,7 @@ O `verify` falha se a cobertura ficar abaixo do mínimo:
 | Linhas | 80% | `jacoco.line.minimum` |
 | Branches | 80% | `jacoco.branch.minimum` |
 
-A classe `BradescoApplication` (bootstrap do Spring) fica fora da medição.
+A classe `Application` (bootstrap do Spring) fica fora da medição. O `pom.xml` ainda cita o nome antigo `BradescoApplication.class` na exclusão do JaCoCo, por isso ela não tem efeito hoje.
 
 ### Regras de build
 
@@ -479,5 +482,5 @@ O `maven-enforcer-plugin` falha o build se:
 | `503 DOWNSTREAM_UNAVAILABLE` | Serviço de domínio fora do ar, URL errada, ou o downstream respondeu `503`. | Verifique `BLOQUEIO_SERVICE_BASE_URL`, a disponibilidade do serviço, proxy e firewall. |
 | `504 DOWNSTREAM_TIMEOUT` | O downstream não respondeu dentro do timeout, ou respondeu `504`. | Verifique a latência do serviço antes de aumentar `BLOQUEIO_SERVICE_TIMEOUT` / `BLOQUEIO_SERVICE_CONNECT_TIMEOUT`. |
 | `502 DOWNSTREAM_ERROR` | O downstream respondeu um erro (inclusive `401`/`403` por API key inválida, ou `404` por path errado) ou um JSON fora do contrato. | Confira `BLOQUEIO_SERVICE_API_KEY` e `BLOQUEIO_SERVICE_PATH`, e procure o `traceId` nos logs do serviço de domínio. |
-| `500 INTERNAL_ERROR` | Falha inesperada no BFF. | Procure o `traceId` nos logs do BFF. |
+| `500 INTERNAL_ERROR` | Falha inesperada no BFF, inclusive erro de serialização do request. | Procure o `traceId` nos logs do BFF: o stack trace da causa aparece no log em nível `ERROR`. |
 | Não encontro a requisição nos logs do downstream | Busca feita pelo ID errado. | Use o valor do header `X-Correlation-ID` (ou do `traceId` do erro): é o mesmo enviado ao downstream. |

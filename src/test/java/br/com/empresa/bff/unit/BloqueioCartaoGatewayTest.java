@@ -17,7 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
-import br.com.empresa.bff.domain.model.BloqueioCartao;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.exception.DownstreamIntegrationException;
 import br.com.empresa.bff.gateway.BloqueioCartaoGatewayImpl;
 import br.com.empresa.bff.gateway.client.BloqueioCartaoClient;
@@ -25,17 +25,19 @@ import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 import br.com.empresa.bff.support.JsonFixtures;
 import feign.Request;
 import feign.RetryableException;
+import feign.codec.DecodeException;
+import feign.codec.EncodeException;
 
 class BloqueioCartaoGatewayTest {
 
-    private BloqueioCartao bloqueio;
+    private BloqueioCartaoDownstreamRequest bloqueio;
 
     private BloqueioCartaoClient client;
     private BloqueioCartaoGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
-        bloqueio = JsonFixtures.read("bloqueio-cartao/request-without-reason.json", BloqueioCartao.class);
+        bloqueio = JsonFixtures.read("bloqueio-cartao/request-without-reason.json", BloqueioCartaoDownstreamRequest.class);
         client = mock(BloqueioCartaoClient.class);
         gateway = new BloqueioCartaoGatewayImpl(client);
     }
@@ -73,12 +75,32 @@ class BloqueioCartaoGatewayTest {
     }
 
     @Test
-    void translatesUnexpectedFailureToBadGatewayKeepingCause() {
-        var failure = new IllegalStateException("invalid payload");
+    void translatesFeignFailureToBadGatewayKeepingCause() {
+        var failure = new DecodeException(200, "invalid payload", request(), new IllegalStateException("boom"));
 
         var exception = assertTranslated(failure, HttpStatus.BAD_GATEWAY);
 
         assertSame(failure, exception.getCause());
+    }
+
+    @Test
+    void doesNotTranslateEncodeFailureBecauseTheRequestWasNeverSent() {
+        var failure = new EncodeException("cannot serialize request", new IllegalStateException("boom"));
+        when(client.bloquear(bloqueio)).thenThrow(failure);
+
+        var thrown = assertThrows(EncodeException.class, () -> gateway.bloquear(bloqueio));
+
+        assertSame(failure, thrown);
+    }
+
+    @Test
+    void doesNotTranslateUnexpectedFailure() {
+        var failure = new IllegalStateException("bug");
+        when(client.bloquear(bloqueio)).thenThrow(failure);
+
+        var thrown = assertThrows(IllegalStateException.class, () -> gateway.bloquear(bloqueio));
+
+        assertSame(failure, thrown);
     }
 
     private DownstreamIntegrationException assertTranslated(RuntimeException failure, HttpStatus expectedStatus) {
@@ -90,8 +112,11 @@ class BloqueioCartaoGatewayTest {
         return exception;
     }
 
+    private static Request request() {
+        return Request.create(Request.HttpMethod.POST, "/", Map.of(), null, StandardCharsets.UTF_8, null);
+    }
+
     private static RetryableException ioFailure(IOException cause) {
-        var request = Request.create(Request.HttpMethod.POST, "/", Map.of(), null, StandardCharsets.UTF_8, null);
-        return new RetryableException(-1, cause.getMessage(), Request.HttpMethod.POST, cause, (Long) null, request);
+        return new RetryableException(-1, cause.getMessage(), Request.HttpMethod.POST, cause, (Long) null, request());
     }
 }

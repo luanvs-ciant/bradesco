@@ -24,7 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import br.com.empresa.bff.config.feign.BloqueioCartaoFeignConfig;
-import br.com.empresa.bff.domain.gateway.BloqueioCartaoGateway;
+import br.com.empresa.bff.gateway.BloqueioCartaoGateway;
 import feign.Client;
 import feign.RequestInterceptor;
 import feign.Retryer;

@@ -1,4 +1,4 @@
-package br.com.empresa.bff.domain.model;
+package br.com.empresa.bff.model;
 
 public enum TipoBloqueio {
     TEMPORARIO,

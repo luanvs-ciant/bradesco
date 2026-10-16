@@ -47,28 +47,41 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIntegrationException(DownstreamIntegrationException ex) {
         int downstreamStatus = ex.getStatus().value();
         if (downstreamStatus == HttpStatus.SERVICE_UNAVAILABLE.value()) {
-            return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.DOWNSTREAM_UNAVAILABLE);
+            return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.DOWNSTREAM_UNAVAILABLE, ex);
         }
         if (downstreamStatus == HttpStatus.GATEWAY_TIMEOUT.value()) {
-            return error(HttpStatus.GATEWAY_TIMEOUT, ErrorCode.DOWNSTREAM_TIMEOUT);
+            return error(HttpStatus.GATEWAY_TIMEOUT, ErrorCode.DOWNSTREAM_TIMEOUT, ex);
         }
-        return error(HttpStatus.BAD_GATEWAY, ErrorCode.DOWNSTREAM_ERROR);
+        return error(HttpStatus.BAD_GATEWAY, ErrorCode.DOWNSTREAM_ERROR, ex);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, ex);
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code) {
-        return error(status, code, code.getDefaultMessage());
+        return error(status, code, code.getDefaultMessage(), null);
+    }
+
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code, Throwable cause) {
+        return error(status, code, code.getDefaultMessage(), cause);
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code, String message) {
+        return error(status, code, message, null);
+    }
+
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, ErrorCode code, String message,
+            Throwable cause) {
         String traceId = traceId();
-        log.atLevel(status.is5xxServerError() ? org.slf4j.event.Level.ERROR : org.slf4j.event.Level.WARN)
+        var event = log.atLevel(status.is5xxServerError() ? org.slf4j.event.Level.ERROR : org.slf4j.event.Level.WARN)
                 .addKeyValue("code", code.name()).addKeyValue("status", status.value())
-                .addKeyValue("traceId", traceId).log("Requisição rejeitada");
+                .addKeyValue("traceId", traceId);
+        if (cause != null) {
+            event = event.setCause(cause);
+        }
+        event.log("Requisição rejeitada");
         return ResponseEntity.status(status).body(new ErrorResponse(code.name(), message, traceId));
     }
 

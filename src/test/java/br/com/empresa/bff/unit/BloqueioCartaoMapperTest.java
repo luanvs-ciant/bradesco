@@ -8,10 +8,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
-import br.com.empresa.bff.domain.model.BloqueioCartao;
-import br.com.empresa.bff.domain.model.Portador;
-import br.com.empresa.bff.domain.model.TipoBloqueio;
-import br.com.empresa.bff.mapper.BloqueioCartaoMapperImpl;
+import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest.PortadorDownstreamRequest;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
+import br.com.empresa.bff.model.TipoBloqueio;
+import br.com.empresa.bff.service.mapper.BloqueioCartaoMapperImpl;
 import br.com.empresa.bff.support.JsonFixtures;
 
 class BloqueioCartaoMapperTest {
@@ -20,30 +22,30 @@ class BloqueioCartaoMapperTest {
 
     @Test
     void returnsNullWhenRequestIsNull() {
-        assertNull(mapper.toDomain(null));
+        assertNull(mapper.toDownstreamRequest(null));
     }
 
     @Test
-    void mapsNullTipoBloqueioAndPortadoresToNull() {
+    void mapsNullPortadoresToNull() {
         var request = new BloqueioCartaoRequest("123456", null, null, null);
 
-        var result = mapper.toDomain(request);
+        var result = mapper.toDownstreamRequest(request);
 
         assertNull(result.tipoBloqueio());
         assertNull(result.portadores());
     }
 
     @Test
-    void mapsRequestToDomain() {
+    void mapsRequestToDownstreamRequest() {
         var request = JsonFixtures.read("bloqueio-cartao/request-with-reason.json", BloqueioCartaoRequest.class);
 
-        var result = mapper.toDomain(request);
+        var result = mapper.toDownstreamRequest(request);
 
-        assertEquals(new BloqueioCartao(
+        assertEquals(new BloqueioCartaoDownstreamRequest(
                 "123456",
                 TipoBloqueio.DEFINITIVO,
                 "SOLICITACAO_CLIENTE",
-                List.of(new Portador("987654"), new Portador("456789"))
+                List.of(new PortadorDownstreamRequest("987654"), new PortadorDownstreamRequest("456789"))
         ), result);
     }
 
@@ -51,11 +53,25 @@ class BloqueioCartaoMapperTest {
     void mapsRequestWithOptionalMotivoOmitted() {
         var request = JsonFixtures.read("bloqueio-cartao/request-without-reason.json", BloqueioCartaoRequest.class);
 
-        var result = mapper.toDomain(request);
+        var result = mapper.toDownstreamRequest(request);
 
         assertEquals("123456", result.cartaoId());
         assertEquals(TipoBloqueio.TEMPORARIO, result.tipoBloqueio());
         assertNull(result.motivo());
-        assertEquals(List.of(new Portador("987654")), result.portadores());
+        assertEquals(List.of(new PortadorDownstreamRequest("987654")), result.portadores());
+    }
+
+    @Test
+    void mapsDownstreamResponseToResponse() {
+        var downstreamResponse = JsonFixtures.read(
+                "bloqueio-cartao/response-processing.json", BloqueioCartaoDownstreamResponse.class);
+
+        assertEquals(new BloqueioCartaoResponse("protocol-123", "PROCESSING"),
+                mapper.toResponse(downstreamResponse));
+    }
+
+    @Test
+    void returnsNullWhenResponseIsNull() {
+        assertNull(mapper.toResponse(null));
     }
 }

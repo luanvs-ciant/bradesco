@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import br.com.empresa.bff.config.feign.BloqueioCartaoFeignConfig;
-import br.com.empresa.bff.domain.model.BloqueioCartao;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
 import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamResponse;
 
 @FeignClient(name = "bloqueioCartao", configuration = BloqueioCartaoFeignConfig.class)
 public interface BloqueioCartaoClient {
 
     @PostMapping(value = "${bloqueio-cartao.path}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    BloqueioCartaoDownstreamResponse bloquear(@RequestBody BloqueioCartao request);
+    BloqueioCartaoDownstreamResponse bloquear(@RequestBody BloqueioCartaoDownstreamRequest request);
 }

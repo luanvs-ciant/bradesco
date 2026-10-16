@@ -9,9 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import br.com.empresa.bff.controller.dto.TipoBloqueioDto;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
-import br.com.empresa.bff.domain.model.BloqueioCartao;
+import br.com.empresa.bff.gateway.dto.BloqueioCartaoDownstreamRequest;
+import br.com.empresa.bff.model.TipoBloqueio;
 import br.com.empresa.bff.support.JsonFixtures;
 
 class JsonFixturesTest {
@@ -25,7 +25,7 @@ class JsonFixturesTest {
         var request = JsonFixtures.read(REQUEST, BloqueioCartaoRequest.class);
 
         assertEquals("123456", request.cartaoId());
-        assertEquals(TipoBloqueioDto.TEMPORARIO, request.tipoBloqueio());
+        assertEquals(TipoBloqueio.TEMPORARIO, request.tipoBloqueio());
         assertNull(request.motivo());
         assertEquals("987654", request.portadores().getFirst().portadorId());
     }
@@ -67,10 +67,10 @@ class JsonFixturesTest {
     }
 
     @Test
-    void readsDomainUsingTheSameJsonContractAsTheRequest() {
-        var bloqueio = JsonFixtures.read(REQUEST, BloqueioCartao.class);
+    void readsDownstreamRequestUsingTheSameJsonContractAsTheRequest() {
+        var bloqueio = JsonFixtures.read(REQUEST, BloqueioCartaoDownstreamRequest.class);
 
         assertEquals("123456", bloqueio.cartaoId());
-        assertEquals("987654", bloqueio.portadores().getFirst().id());
+        assertEquals("987654", bloqueio.portadores().getFirst().portadorId());
     }
 }

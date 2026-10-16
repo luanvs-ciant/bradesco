@@ -30,7 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 
-import br.com.empresa.bff.application.service.BloqueioCartaoApplicationService;
+import br.com.empresa.bff.service.BloqueioCartaoService;
 import br.com.empresa.bff.controller.BloqueioCartaoController;
 import br.com.empresa.bff.controller.dto.request.BloqueioCartaoRequest;
 import br.com.empresa.bff.controller.dto.response.BloqueioCartaoResponse;
@@ -51,7 +51,7 @@ class BloqueioCartaoControllerTests {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private BloqueioCartaoApplicationService applicationService;
+    private BloqueioCartaoService applicationService;
 
     @Test
     void shouldAcceptRequestAndPreserveHttpAndJsonContracts() throws Exception {
